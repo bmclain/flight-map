@@ -1,0 +1,18 @@
+services:
+  flight-map:
+    build: .
+    container_name: flight-map
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    volumes:
+      # config.json, caches, and your own photo library (data/images/...)
+      - ./data:/data
+    environment:
+      TZ: America/Los_Angeles
+      # Uncomment to require a password for changing settings in /admin
+      # ADMIN_PASSWORD: change-me
+      # First-run defaults (ignored once data/config.json exists; edit in /admin instead)
+      # RECEIVER_LAT: "47.6062"
+      # RECEIVER_LON: "-122.3321"
+      # SOURCE_URL: http://raspberrypi.local/tar1090/data/aircraft.json

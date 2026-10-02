@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>Overhead</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/css/fonts.css" />
+    <link rel="stylesheet" href="/css/display.css" />
+  </head>
+  <body data-theme="dark" data-layout="card" data-view="loading">
+    <main id="stage">
+      <div id="card-wrap">
+        <article id="card" aria-live="polite">
+          <header class="head">
+            <div class="ident">
+              <div class="maker" id="c-maker"></div>
+              <h1 class="model" id="c-model"></h1>
+            </div>
+            <div class="flight">
+              <div class="airline" id="c-airline"></div>
+              <div class="flightno" id="c-flight"></div>
+              <div class="badges" id="c-badges"></div>
+            </div>
+          </header>
+
+          <figure class="photo" id="c-photo">
+            <div class="silhouette" id="c-silhouette"></div>
+            <img id="c-img-bg" class="bg" alt="" decoding="async" />
+            <img id="c-img" alt="" decoding="async" />
+            <figcaption id="c-credit"></figcaption>
+          </figure>
+
+          <section class="route" id="c-route">
+            <div class="ap from">
+              <div class="lbl">From</div>
+              <div class="city" id="c-from-city"></div>
+              <div class="code" id="c-from-code"></div>
+            </div>
+            <div class="route-line" aria-hidden="true">
+              <span class="dash"></span>
+              <svg viewBox="0 0 64 64" class="route-plane">
+                <path
+                  d="M32 3c2 0 3 3 3 7v15l25 13v3l-25-6v15l8 6v3l-8-1.5-1.5 3.5h-3l-1.5-3.5-8 1.5v-3l8-6V35L4 41v-3l25-13V10c0-4 1-7 3-7z"
+                  transform="rotate(90 32 32)"
+                />
+              </svg>
+              <span class="dash"></span>
+            </div>
+            <div class="ap to">
+              <div class="lbl">To</div>
+              <div class="city" id="c-to-city"></div>
+              <div class="code" id="c-to-code"></div>
+            </div>
+            <div class="route-none" id="c-route-none"></div>
+          </section>
+
+          <section class="where">
+            <div class="pointer" id="c-pointer">
+              <svg viewBox="-50 -50 100 100" aria-hidden="true">
+                <circle class="ring" r="46" />
+                <g class="ticks">
+                  <line x1="0" y1="-46" x2="0" y2="-40" />
+                  <line x1="46" y1="0" x2="40" y2="0" />
+                  <line x1="0" y1="46" x2="0" y2="40" />
+                  <line x1="-46" y1="0" x2="-40" y2="0" />
+                </g>
+                <text class="ahead" x="0" y="-31">AHEAD</text>
+                <g id="c-arrow" class="arrow">
+                  <path d="M0 -30 L10 -15 L3.8 -15 L3.8 -7 L-3.8 -7 L-3.8 -15 L-10 -15 Z" />
+                  <g id="c-pointer-plane" class="pointer-plane"></g>
+                </g>
+                <circle class="you" r="3.5" />
+              </svg>
+            </div>
+            <div class="where-text">
+              <div class="dir" id="c-dir"></div>
+              <div class="elev">
+                <svg viewBox="0 0 40 40" class="elev-gauge" aria-hidden="true">
+                  <path class="arc" d="M4 36 A32 32 0 0 1 36 4" />
+                  <line class="horizon" x1="2" y1="36" x2="38" y2="36" />
+                  <line id="c-elev-ray" class="ray" x1="4" y1="36" x2="36" y2="36" />
+                  <circle id="c-elev-dot" class="dot" cx="36" cy="36" r="3" />
+                </svg>
+                <span id="c-elev"></span>
+              </div>
+            </div>
+          </section>
+
+          <dl class="stats">
+            <div class="stat">
+              <dt>Distance</dt>
+              <dd id="c-dist"></dd>
+            </div>
+            <div class="stat">
+              <dt>Altitude</dt>
+              <dd id="c-alt"></dd>
+            </div>
+            <div class="stat">
+              <dt>Speed</dt>
+              <dd id="c-speed"></dd>
+            </div>
+            <div class="stat">
+              <dt>Heading</dt>
+              <dd id="c-heading"></dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+
+      <div id="map-wrap">
+        <div id="map-rotor"><div id="map"></div></div>
+        <div class="map-title" id="map-title"></div>
+        <div class="map-attrib" id="map-attrib"></div>
+        <div class="map-compass" id="map-compass" aria-hidden="true">
+          <svg viewBox="-20 -20 40 40">
+            <path d="M0 -15 L5 2 L0 -2 L-5 2 Z" />
+            <text y="13">N</text>
+          </svg>
+        </div>
+      </div>
+
+      <section id="idle">
+        <div class="idle-time" id="idle-time"></div>
+        <div class="idle-date" id="idle-date"></div>
+        <div class="idle-msg" id="idle-msg"></div>
+      </section>
+
+      <section id="loading">
+        <div class="spinner"></div>
+        <div>Connecting…</div>
+      </section>
+    </main>
+
+    <footer id="footer">
+      <div class="status" id="f-status"><span class="dot"></span><span id="f-status-text"></span></div>
+      <div class="counter" id="f-counter"></div>
+      <div class="progress"><div id="f-progress"></div></div>
+    </footer>
+
+    <nav id="controls" aria-label="Display controls">
+      <button data-action="prev" title="Previous (←)">‹</button>
+      <button data-action="pin" title="Hold on this aircraft (space)" id="pin-btn">❚❚</button>
+      <button data-action="next" title="Next (→)">›</button>
+      <button data-action="map" title="Map (M)">Map</button>
+      <button data-action="fullscreen" title="Full screen (F)">⛶</button>
+      <a href="/admin" title="Settings">⚙</a>
+    </nav>
+
+    <script type="module" src="/js/display.js"></script>
+  </body>
+</html>

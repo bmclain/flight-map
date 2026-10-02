@@ -1,0 +1,22 @@
+{
+  "name": "flight-map",
+  "version": "0.1.0",
+  "description": "Outdoor 'what plane is that?' display for an ADS-B receiver: cycles through nearby aircraft showing type, photo, route and where to look.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "fetch-images": "node scripts/fetch-type-images.js"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "leaflet": "^1.9.4"
+  }
+}

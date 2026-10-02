@@ -1,0 +1,11 @@
+{
+  "name": "Overhead",
+  "short_name": "Overhead",
+  "description": "What plane is that? Live display of nearby aircraft.",
+  "start_url": "/display",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#08101d",
+  "theme_color": "#08101d",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

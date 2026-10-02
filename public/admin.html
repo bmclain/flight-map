@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Overhead · Settings</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/css/fonts.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <img src="/favicon.svg" alt="" width="32" height="32" />
+        <div>
+          <h1>Overhead</h1>
+          <p>Control panel</p>
+        </div>
+      </div>
+      <a class="btn ghost" href="/display" target="_blank" rel="noopener">Open display ↗</a>
+    </header>
+
+    <main class="grid">
+      <!-- Status ---------------------------------------------------------------->
+      <section class="card span-2" id="status-card">
+        <h2>Status</h2>
+        <div class="status-grid" id="status"></div>
+      </section>
+
+      <!-- Receiver --------------------------------------------------------------->
+      <section class="card">
+        <h2>Receiver location</h2>
+        <p class="help">
+          Where the antenna (and the screen) are. Distances, directions and "look up" angles are measured from here.
+          Click the map to move the pin.
+        </p>
+        <div id="loc-map" class="loc-map"></div>
+        <div class="row-3">
+          <label>Latitude <input type="number" step="0.00001" data-path="receiver.lat" /></label>
+          <label>Longitude <input type="number" step="0.00001" data-path="receiver.lon" /></label>
+          <label>Ground elevation (m) <input type="number" step="1" data-path="receiver.altitudeM" /></label>
+        </div>
+        <div class="row-2">
+          <label>Name <input type="text" maxlength="60" data-path="receiver.name" /></label>
+          <div class="align-end">
+            <button type="button" class="btn" id="use-location">Use this device's location</button>
+          </div>
+        </div>
+        <p class="note" id="loc-note"></p>
+      </section>
+
+      <!-- Data source ------------------------------------------------------------->
+      <section class="card">
+        <h2>Aircraft data</h2>
+        <div class="choices" role="radiogroup">
+          <label class="choice">
+            <input type="radio" name="source-type" value="aircraft-json" data-path="source.type" />
+            <span
+              ><strong>My receiver</strong> readsb / dump1090 / tar1090 <code>aircraft.json</code> on the Raspberry
+              Pi</span
+            >
+          </label>
+          <label class="choice">
+            <input type="radio" name="source-type" value="adsb-api" data-path="source.type" />
+            <span
+              ><strong>Online feed</strong> a readsb-style API such as adsb.lol (useful before the Pi is set up)</span
+            >
+          </label>
+          <label class="choice">
+            <input type="radio" name="source-type" value="simulator" data-path="source.type" />
+            <span><strong>Simulator</strong> fake traffic around the receiver, for testing the display</span>
+          </label>
+        </div>
+        <label data-show="source.type=aircraft-json"
+          >aircraft.json URL
+          <input type="url" data-path="source.url" placeholder="http://raspberrypi.local/tar1090/data/aircraft.json" />
+          <small
+            >tar1090: <code>http://PI/tar1090/data/aircraft.json</code> · dump1090-fa:
+            <code>http://PI:8080/data/aircraft.json</code></small
+          >
+        </label>
+        <label data-show="source.type=adsb-api"
+          >API URL
+          <input type="url" data-path="source.apiUrl" />
+          <small
+            >Placeholders: <code>{lat}</code> <code>{lon}</code> <code>{radiusNm}</code> <code>{radiusKm}</code>.
+            airplanes.live: <code>https://api.airplanes.live/v2/point/{lat}/{lon}/{radiusNm}</code></small
+          >
+        </label>
+        <div class="row-2">
+          <label
+            >Poll every (seconds) <input type="number" min="0.5" max="60" step="0.5" data-path="source.pollSeconds"
+          /></label>
+          <div class="align-end"><button type="button" class="btn" id="test-source">Test connection</button></div>
+        </div>
+        <p class="note" id="test-result"></p>
+      </section>
+
+      <!-- Screen orientation ---------------------------------------------------------->
+      <section class="card span-2">
+        <h2>Which way the screen faces</h2>
+        <p class="help">
+          The arrow on the display points from the viewer to the aircraft. For that to work it needs to know which
+          compass direction a person is <em>facing while looking at the screen</em>. On the display, “up” means “beyond
+          the screen”, so a screen hung on a south-facing wall means the viewer faces <strong>north</strong>.
+        </p>
+        <div class="facing">
+          <div class="dial-wrap">
+            <svg id="dial" viewBox="-110 -110 220 220" role="slider" aria-label="Facing direction" tabindex="0">
+              <circle r="100" class="dial-face" />
+              <g id="dial-ticks"></g>
+              <g class="dial-labels">
+                <text y="-78">N</text>
+                <text x="80" y="5">E</text>
+                <text y="88">S</text>
+                <text x="-80" y="5">W</text>
+              </g>
+              <g id="dial-needle">
+                <path d="M0 -64 L13 -26 L-13 -26 Z" class="needle" />
+                <line y1="-26" y2="0" class="needle-line" />
+              </g>
+              <circle r="9" class="dial-you" />
+            </svg>
+            <div class="dial-readout" id="dial-readout"></div>
+          </div>
+          <div class="facing-controls">
+            <label
+              >Facing (degrees from north)
+              <div class="slider-row">
+                <input type="range" min="0" max="359" step="1" data-path="display.facingDeg" />
+                <input type="number" min="0" max="359" step="1" data-path="display.facingDeg" class="narrow" />
+              </div>
+            </label>
+            <div class="presets" id="facing-presets"></div>
+            <h3>Calibrate with a plane you can see</h3>
+            <p class="help">
+              Stand where you'd look at the screen. When you spot a plane roughly straight ahead (beyond the screen),
+              tap it below. Low, close planes work best.
+            </p>
+            <div class="calib" id="calib"></div>
+            <button type="button" class="btn ghost" id="use-compass">Use this phone's compass</button>
+            <p class="note" id="compass-note"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cycling ------------------------------------------------------------------>
+      <section class="card">
+        <h2>Cycling through aircraft</h2>
+        <div class="row-2">
+          <label
+            >Show each aircraft for (seconds)
+            <input type="number" min="3" max="600" step="1" data-path="display.cycleSeconds"
+          /></label>
+          <label
+            >Only aircraft within (<span data-unit="distance"></span>)
+            <input type="number" min="0.5" step="0.5" data-path="display.cycleRangeKm" data-kind="distance" />
+          </label>
+        </div>
+        <div class="row-2">
+          <label>Lowest altitude (ft) <input type="number" step="100" data-path="display.minAltitudeFt" /></label>
+          <label>Highest altitude (ft) <input type="number" step="1000" data-path="display.maxAltitudeFt" /></label>
+        </div>
+        <label class="check"
+          ><input type="checkbox" data-path="display.hideGround" /> Skip aircraft on the ground</label
+        >
+        <fieldset>
+          <legend>
+            <label class="check"
+              ><input type="checkbox" data-path="display.spotlight.enabled" /> Spotlight very close aircraft</label
+            >
+          </legend>
+          <p class="help">
+            When something is close and low (probably the plane you're looking at) the display sticks to it instead of
+            cycling. Avoid large values if you live next to an airport.
+          </p>
+          <div class="row-2">
+            <label
+              >Closer than (<span data-unit="distance"></span>)
+              <input type="number" min="0.1" step="0.1" data-path="display.spotlight.rangeKm" data-kind="distance" />
+            </label>
+            <label
+              >And below (ft) <input type="number" min="0" step="500" data-path="display.spotlight.maxAltitudeFt"
+            /></label>
+          </div>
+        </fieldset>
+      </section>
+
+      <!-- Map -------------------------------------------------------------------------->
+      <section class="card">
+        <h2>Map overview</h2>
+        <div class="row-2">
+          <label
+            >Show the map after every … aircraft
+            <input type="number" min="0" max="100" step="1" data-path="map.everyCards" /><small
+              >0 = never (except when the sky is quiet)</small
+            ></label
+          >
+          <label>for (seconds) <input type="number" min="3" max="600" step="1" data-path="map.seconds" /></label>
+        </div>
+        <div class="row-2">
+          <label
+            >Map range (<span data-unit="distance"></span>)
+            <input type="number" min="1" step="1" data-path="map.rangeKm" data-kind="distance" />
+          </label>
+          <label>Trails (minutes) <input type="number" min="0" max="60" step="1" data-path="map.trailMinutes" /></label>
+        </div>
+        <div class="row-2">
+          <label
+            >When nothing is nearby show
+            <select data-path="map.idle">
+              <option value="map">the map</option>
+              <option value="clock">a clock</option>
+            </select>
+          </label>
+          <label
+            >Map orientation
+            <select data-path="map.orientation">
+              <option value="north-up">North up</option>
+              <option value="facing-up">The way you face is up</option>
+            </select>
+          </label>
+        </div>
+        <div class="row-2">
+          <label
+            >Background map
+            <select data-path="map.tiles">
+              <option value="carto">CARTO (OpenStreetMap)</option>
+              <option value="osm">OpenStreetMap standard</option>
+              <option value="none">None (offline)</option>
+              <option value="custom">Custom tile URL</option>
+            </select>
+          </label>
+          <label class="check align-end"><input type="checkbox" data-path="map.labels" /> Label aircraft</label>
+        </div>
+        <label data-show="map.tiles=custom"
+          >Tile URL
+          <input type="url" data-path="map.customTileUrl" placeholder="https://{s}.example.com/{z}/{x}/{y}.png"
+        /></label>
+      </section>
+
+      <!-- Look & feel ------------------------------------------------------------------>
+      <section class="card">
+        <h2>Look &amp; feel</h2>
+        <div class="row-2">
+          <label
+            >Units
+            <select data-path="display.units">
+              <option value="imperial">Miles, mph, feet</option>
+              <option value="aviation">Nautical miles, knots, feet</option>
+              <option value="metric">Kilometres, km/h, metres</option>
+            </select>
+          </label>
+          <label
+            >Theme
+            <select data-path="display.theme">
+              <option value="auto">Automatic (light by day, dark at night)</option>
+              <option value="light">Light — best in sunshine</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+        </div>
+        <div class="row-2">
+          <label
+            >Layout
+            <select data-path="display.layout">
+              <option value="card">One aircraft at a time, map in between</option>
+              <option value="split">Aircraft + map side by side</option>
+            </select>
+          </label>
+          <label class="check align-end"><input type="checkbox" data-path="display.clock24h" /> 24-hour clock</label>
+        </div>
+        <p class="help">
+          Per-screen overrides: add <code>?facing=135&amp;layout=split&amp;theme=dark&amp;units=metric</code> to a
+          display's URL.
+        </p>
+      </section>
+
+      <!-- Lookups ------------------------------------------------------------------------>
+      <section class="card">
+        <h2>Photos &amp; routes</h2>
+        <label
+          >Photos
+          <select data-path="enrichment.photoMode">
+            <option value="airframe">Photo of the actual aircraft (planespotters.net), else the type</option>
+            <option value="type">One consistent photo per aircraft type</option>
+            <option value="off">Silhouettes only</option>
+          </select>
+          <small
+            >Type photos come from Wikipedia and are cached in <code>data/cache/type-images</code>. To use your own,
+            drop files named by ICAO type into <code>data/images/types/</code> (e.g. <code>B38M.jpg</code>), or by hex /
+            registration into <code>data/images/airframes/</code>.</small
+          >
+        </label>
+        <label class="check"
+          ><input type="checkbox" data-path="enrichment.routes" /> Look up origin &amp; destination</label
+        >
+        <div class="indent">
+          <label class="check"
+            ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsblol" />
+            adsb.lol</label
+          >
+          <label class="check"
+            ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsbdb" />
+            adsbdb.com</label
+          >
+          <label class="check"
+            ><input type="checkbox" data-path="enrichment.hideImplausibleRoutes" /> Hide routes that don't match where
+            the plane actually is</label
+          >
+        </div>
+        <label class="check"
+          ><input type="checkbox" data-path="enrichment.aircraftDb" /> Use the tar1090 aircraft database for types &amp;
+          registrations</label
+        >
+      </section>
+
+      <!-- Preview ------------------------------------------------------------------------->
+      <section class="card span-2">
+        <h2>Preview <small class="muted">(live, uses saved settings)</small></h2>
+        <div class="preview"><iframe id="preview" title="Display preview" src="about:blank"></iframe></div>
+      </section>
+    </main>
+
+    <div class="savebar" id="savebar">
+      <span id="save-msg">Unsaved changes</span>
+      <button type="button" class="btn ghost" id="revert">Revert</button>
+      <button type="button" class="btn primary" id="save">Save</button>
+    </div>
+
+    <script type="module" src="/js/admin.js"></script>
+  </body>
+</html>

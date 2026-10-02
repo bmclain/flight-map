@@ -5,21 +5,8 @@ import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 import { destinationPoint } from '/shared/geo.js';
 import { formatDistance, joinUnit } from '/shared/units.js';
 import { silhouettePaths } from './icons.js';
+import { tileSpec } from '/shared/tiles.js';
 
-const TILES = {
-  carto: {
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap contributors © CARTO',
-    subdomains: 'abcd',
-  },
-  osm: {
-    dark: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    light: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenStreetMap contributors',
-    subdomains: 'abc',
-  },
-};
 
 const esc = (s) =>
   String(s ?? '').replace(
@@ -28,7 +15,8 @@ const esc = (s) =>
   );
 
 export class MapView {
-  constructor({ wrap, rotor, el, title, compass, attribution }) {
+  constructor({ wrap, rotor, el, title, compass, attribution, onSelect }) {
+    this.onSelect = onSelect;
     this.attribEl = attribution;
     this.fitKm = null;
     this.wrap = wrap;
@@ -76,25 +64,21 @@ export class MapView {
   }
 
   #setTiles(mapCfg, theme) {
-    const key = `${mapCfg.tiles}|${mapCfg.customTileUrl}|${theme}`;
+    const key = `${mapCfg.tiles}|${mapCfg.customTileUrl}|${mapCfg.tileApiKey}|${theme}`;
     if (key === this.tileKey) return;
     this.tileKey = key;
     if (this.tileLayer) this.map.removeLayer(this.tileLayer);
     this.tileLayer = null;
-    let url;
-    let opts = { maxZoom: 18, crossOrigin: true };
-    if (mapCfg.tiles === 'custom') {
-      url = mapCfg.customTileUrl;
-    } else if (TILES[mapCfg.tiles]) {
-      const t = TILES[mapCfg.tiles];
-      url = t[theme] ?? t.dark;
-      opts = { ...opts, subdomains: t.subdomains };
-      if (this.attribEl) this.attribEl.textContent = t.attribution;
+    const spec = tileSpec(mapCfg, theme);
+    if (this.attribEl) this.attribEl.textContent = spec?.attribution ?? '';
+    if (spec) {
+      this.tileLayer = L.tileLayer(spec.url, { maxZoom: 18, crossOrigin: true, subdomains: spec.subdomains }).addTo(
+        this.map,
+      );
     }
-    if (mapCfg.tiles !== 'carto' && mapCfg.tiles !== 'osm' && this.attribEl) this.attribEl.textContent = '';
-    if (url) this.tileLayer = L.tileLayer(url, opts).addTo(this.map);
-    this.el.classList.toggle('osm-dark', mapCfg.tiles === 'osm' && theme === 'dark');
+    this.el.classList.toggle('osm-dark', !!spec?.invertForDark && theme === 'dark');
   }
+
 
   #drawOverlay() {
     const { receiver, display, map, units } = this.settings;
@@ -212,7 +196,9 @@ export class MapView {
       const key = `${category}|${size}|${label}`;
       let m = this.markers.get(ac.hex);
       if (!m) {
-        m = L.marker([ac.lat, ac.lon], { interactive: false, keyboard: false });
+        m = L.marker([ac.lat, ac.lon], { interactive: true, keyboard: false, bubblingMouseEvents: false });
+        const hex = ac.hex;
+        m.on('click', () => this.onSelect?.(hex));
         m.addTo(this.planeLayer);
         this.markers.set(ac.hex, m);
       }

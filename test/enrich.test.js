@@ -8,7 +8,7 @@ import { categoryFromDesc, splitIcaoName, TypeDb } from '../server/enrich/types.
 import {
   isAirlineCallsign,
   normalizeAdsbdbRoute,
-  normalizeAdsbLolRoute,
+  normalizeRoutesetEntry,
   resolveLeg,
   RouteResolver,
 } from '../server/enrich/routes.js';
@@ -178,10 +178,10 @@ const ADSBDB_ASA = {
 };
 
 test('route providers are normalised to the same shape', () => {
-  const a = normalizeAdsbLolRoute(ADSBLOL_SFO_SEA);
+  const a = normalizeRoutesetEntry(ADSBLOL_SFO_SEA);
   assert.equal(a.airports[0].city, 'San Francisco');
   assert.equal(a.airports[1].iata, 'SEA');
-  assert.equal(normalizeAdsbLolRoute({ callsign: 'X', airport_codes: 'unknown', _airports: [] }), null);
+  assert.equal(normalizeRoutesetEntry({ callsign: 'X', airport_codes: 'unknown', _airports: [] }), null);
   const b = normalizeAdsbdbRoute(ADSBDB_ASA);
   assert.equal(b.airports[1].city, 'San Diego');
   assert.equal(b.airline.name, 'Alaska Airlines');
@@ -215,12 +215,11 @@ test('resolveLeg picks the leg being flown and flags implausible routes', () => 
   assert.equal(overFlorida.plausible, false);
 });
 
-test('RouteResolver batches adsb.lol lookups and falls back to adsbdb', async () => {
+test('RouteResolver batches adsb.im lookups and falls back to adsbdb', async () => {
   const cfg = config();
-  cfg.enrichment.routeProviders = ['adsblol', 'adsbdb'];
   const fetchImpl = fakeFetch([
     [
-      'https://api.adsb.lol/api/0/routeset',
+      'https://adsb.im/api/0/routeset',
       (url, init) => {
         const { planes } = JSON.parse(init.body);
         return {

@@ -153,6 +153,9 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
       const handler = routes[`${req.method} ${pathname}`];
       if (handler) return await handler(req, res, url);
 
+      const lookup = /^\/api\/aircraft\/([0-9a-f]{6})\/lookup$/.exec(pathname);
+      if (lookup && req.method === 'POST') return sendJson(res, app.tracker.want(lookup[1]) ? 202 : 404, {});
+
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
 
       if (pathname === '/') {

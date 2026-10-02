@@ -7,6 +7,7 @@ import { compassPoint, relativeBearing } from '/shared/geo.js';
 import { elevationText, relativeDirectionText, verticalTrend } from '/shared/directions.js';
 import { formatAltitude, formatDistance, formatSpeed, joinUnit } from '/shared/units.js';
 import { isDaylight } from '/shared/sun.js';
+import { estimateFlightTimes, formatDuration } from '/shared/flighttimes.js';
 import { silhouettePaths, silhouetteSvg } from './icons.js';
 import { LiveData } from './stream.js';
 import { MapView } from './map.js';
@@ -55,6 +56,7 @@ const mapView = new MapView({
   title: $('map-title'),
   compass: $('map-compass'),
   attribution: $('map-attrib'),
+  onSelect: (hex) => act('show', hex),
 });
 
 // ---- helpers ----------------------------------------------------------------------
@@ -67,6 +69,7 @@ function poolCtx(now = Date.now()) {
     cycleMs: eff.display.cycleSeconds * 1000,
     mapEvery: eff.display.layout === 'split' ? 0 : eff.map.everyCards,
     mapMs: eff.map.seconds * 1000,
+    all: live.aircraft,
     now,
   };
 }
@@ -209,6 +212,13 @@ function renderRoute(ac) {
     $('c-from-code').textContent = from.code;
     setFitted($('c-to-city'), to.city);
     $('c-to-code').textContent = to.code;
+    const times = estimateFlightTimes(r, ac);
+    const clock = (t) =>
+      new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: !eff.display.clock24h });
+    const past = (t) => t <= Date.now();
+    $('c-takeoff').textContent = times ? `Took off ≈ ${clock(times.takeoff)}` : '';
+    $('c-landing').textContent = times ? `${past(times.landing) ? 'Landing now' : `Lands ≈ ${clock(times.landing)}`}` : '';
+    $('c-duration').textContent = times ? `≈ ${formatDuration(times.durationMin)}` : '';
     return;
   }
   box.classList.add('empty');
@@ -274,6 +284,9 @@ function renderLive(ac) {
     ac.trackDeg == null
       ? '—'
       : `${esc(compassPoint(ac.trackDeg, 8))}<span class="u">${String(Math.round(ac.trackDeg) % 360).padStart(3, '0')}°</span>`;
+  const seats = ac.typeInfo?.seats;
+  $('c-seats-label').textContent = ac.cargo ? 'Carries' : 'Seats';
+  $('c-seats').innerHTML = ac.cargo ? 'Cargo' : seats ? (seats >= 20 ? `~${seats}` : String(seats)) : '—';
 }
 
 function showCard(hex, ctx) {
@@ -441,7 +454,7 @@ function flashControls() {
   controlsTimer = setTimeout(() => document.body.classList.remove('show-controls'), 5000);
 }
 
-function act(action) {
+function act(action, hex) {
   if (!eff) return;
   const now = Date.now();
   const ctx = poolCtx(now);
@@ -455,6 +468,13 @@ function act(action) {
     case 'pin':
       if (cycler.pinned) cycler.unpin(now, ctx.cycleMs);
       else if (cycler.view?.kind === 'card') cycler.pin(cycler.view.hex, now);
+      break;
+    case 'show':
+      if (live.byHex.has(hex)) {
+        cycler.show(hex, now, ctx);
+        // Far-away aircraft aren't looked up by default; ask for its route and photo.
+        fetch(`/api/aircraft/${hex}/lookup`, { method: 'POST' }).catch(() => {});
+      }
       break;
     case 'map':
       cycler.pinned = null;
@@ -489,6 +509,14 @@ $('stage').addEventListener('pointerdown', (e) => {
 });
 $('stage').addEventListener('pointerup', (e) => {
   if (!down) return;
+  // Taps on a plane in the map are handled by the map (shows that plane). In the
+  // split layout taps elsewhere on the map do nothing, so they can't skip cards.
+  const onMap = e.target.closest?.('#map-wrap');
+  if (onMap && (e.target.closest('.ac-marker') || eff?.display.layout === 'split')) {
+    down = null;
+    flashControls();
+    return;
+  }
   const dx = e.clientX - down.x;
   const dy = e.clientY - down.y;
   down = null;

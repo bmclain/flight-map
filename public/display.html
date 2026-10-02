@@ -42,6 +42,7 @@
               <div class="lbl">From</div>
               <div class="city" id="c-from-city"></div>
               <div class="code" id="c-from-code"></div>
+              <div class="time" id="c-takeoff"></div>
             </div>
             <div class="route-line" aria-hidden="true">
               <span class="dash"></span>
@@ -52,11 +53,13 @@
                 />
               </svg>
               <span class="dash"></span>
+              <div class="duration" id="c-duration"></div>
             </div>
             <div class="ap to">
               <div class="lbl">To</div>
               <div class="city" id="c-to-city"></div>
               <div class="code" id="c-to-code"></div>
+              <div class="time" id="c-landing"></div>
             </div>
             <div class="route-none" id="c-route-none"></div>
           </section>
@@ -109,6 +112,10 @@
             <div class="stat">
               <dt>Heading</dt>
               <dd id="c-heading"></dd>
+            </div>
+            <div class="stat">
+              <dt id="c-seats-label">Seats</dt>
+              <dd id="c-seats"></dd>
             </div>
           </dl>
         </article>

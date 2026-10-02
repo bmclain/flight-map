@@ -14,6 +14,7 @@ export class Tracker {
     this.enricher = enricher;
     this.planes = new Map();
     this.lastUpdate = null;
+    this.wanted = new Map(); // hex → expiry: someone tapped it, look it up even if far away
   }
 
   ingest({ aircraft }, now = Date.now()) {
@@ -49,6 +50,7 @@ export class Tracker {
     const { receiver, map, display } = this.getConfig();
     const rangeKm = Math.max(map.rangeKm, display.cycleRangeKm);
     const lookupKm = display.cycleRangeKm * 1.5;
+    for (const [hex, until] of this.wanted) if (until < now) this.wanted.delete(hex);
     const out = [];
     for (const [hex, s] of this.planes) {
       const ac = s.ac;
@@ -66,7 +68,7 @@ export class Tracker {
       let extra = { reg: ac.reg, typeInfo: null };
       try {
         // Only look up routes/photos for aircraft that may soon get a card.
-        if (this.enricher) extra = this.enricher.enrich(ac, { lookup: dist / 1000 <= lookupKm });
+        if (this.enricher) extra = this.enricher.enrich(ac, { lookup: dist / 1000 <= lookupKm || this.wanted.has(hex) });
       } catch (err) {
         this.#enrichError(err);
       }
@@ -97,6 +99,13 @@ export class Tracker {
     }
     out.sort((a, b) => a.distanceKm - b.distanceKm);
     return out;
+  }
+
+  /** Look up route and photo for this aircraft for the next few minutes, wherever it is. */
+  want(hex, now = Date.now()) {
+    if (!this.planes.has(hex)) return false;
+    this.wanted.set(hex, now + 5 * 60_000);
+    return true;
   }
 
   #enrichError(err) {

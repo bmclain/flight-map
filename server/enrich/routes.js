@@ -1,5 +1,6 @@
 // Origin / destination lookup by callsign, using free community databases:
-//   - adsb.lol route API (batch POST, same data tar1090 shows)
+//   - adsb.im route API (batch POST, the data tar1090 shows; adsb.lol serves
+//     the same API but currently answers with an empty body)
 //   - adsbdb.com (also returns the airline name and IATA flight number)
 // Results are cached for hours; a route is checked against the aircraft's
 // position so obviously stale routes can be hidden.
@@ -8,6 +9,12 @@ import { fetchJson, RateLimiter } from '../util/fetch.js';
 import { TtlCache } from '../util/cache.js';
 
 const HOUR = 3600_000;
+
+/** Batch "routeset" endpoints that share the adsb.im / adsb.lol format. */
+const ROUTESET = {
+  adsbim: { url: 'https://adsb.im/api/0/routeset', label: 'adsb.im' },
+  adsblol: { url: 'https://api.adsb.lol/api/0/routeset', label: 'adsb.lol' },
+};
 const FOUND_TTL = 12 * HOUR;
 const MISSING_TTL = 3 * HOUR;
 const ERROR_TTL = 10 * 60_000;
@@ -35,8 +42,8 @@ function airport({ icao, iata, name, city, country, lat, lon }) {
   };
 }
 
-/** adsb.lol `/api/0/routeset` entry → route (or null when unknown). */
-export function normalizeAdsbLolRoute(entry) {
+/** adsb.im / adsb.lol `/api/0/routeset` entry → route (or null when unknown). */
+export function normalizeRoutesetEntry(entry, source = 'adsb.im') {
   const airports = Array.isArray(entry?._airports) ? entry._airports : [];
   if (airports.length < 2) return null;
   return {
@@ -53,7 +60,7 @@ export function normalizeAdsbLolRoute(entry) {
     ),
     airline: null,
     flightIata: null,
-    source: 'adsb.lol',
+    source,
   };
 }
 
@@ -126,7 +133,7 @@ export class RouteResolver {
     this.fetch = fetchImpl;
     this.batchDelayMs = batchDelayMs;
     this.pending = new Set();
-    this.batch = new Map(); // callsign → position, waiting for adsb.lol
+    this.batch = new Map(); // callsign → position, waiting for a routeset batch
     this.batchTimer = null;
     this.adsbdbLimiter = new RateLimiter({ concurrency: 2, minIntervalMs: 250 });
     this.override = null; // (callsign) => route, used by the simulator
@@ -172,7 +179,7 @@ export class RouteResolver {
   #queue(callsign, pos, providers) {
     if (!providers.length) return;
     this.pending.add(callsign);
-    if (providers[0] === 'adsblol') {
+    if (ROUTESET[providers[0]]) {
       this.batch.set(callsign, pos);
       this.batchTimer ??= setTimeout(() => this.#flushBatch(providers), this.batchDelayMs);
     } else {
@@ -188,10 +195,11 @@ export class RouteResolver {
 
     const planes = entries.map(([callsign, pos]) => ({ callsign, lat: pos?.lat ?? 0, lng: pos?.lon ?? 0 }));
     const fallback = providers.includes('adsbdb');
+    const api = ROUTESET[providers[0]];
     this.stats.lookups += planes.length;
     let results = [];
     try {
-      results = await fetchJson('https://api.adsb.lol/api/0/routeset', {
+      results = await fetchJson(api.url, {
         fetchImpl: this.fetch,
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -199,7 +207,7 @@ export class RouteResolver {
       });
       if (!Array.isArray(results)) throw new Error('unexpected routeset response');
     } catch (err) {
-      this.#error('adsb.lol', err);
+      this.#error(api.label, err);
       for (const [cs] of entries) {
         if (fallback) this.#adsbdb(cs);
         else this.#settle(cs, null, ERROR_TTL);
@@ -215,7 +223,9 @@ export class RouteResolver {
       ]),
     );
     for (const [cs] of entries) {
-      const route = normalizeAdsbLolRoute(byCallsign.get(cs));
+      const entry = byCallsign.get(cs);
+      // The service flags routes that don't fit the aircraft's position.
+      const route = entry?.plausible === false ? null : normalizeRoutesetEntry(entry, api.label);
       if (route) this.#settle(cs, route, FOUND_TTL);
       else if (fallback) this.#adsbdb(cs);
       else this.#settle(cs, null, MISSING_TTL);

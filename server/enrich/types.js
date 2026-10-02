@@ -1,6 +1,6 @@
 // Turns an ICAO type designator ("B38M") into something a person recognises
 // ("Boeing" / "737 MAX 8") plus a silhouette category for the icon.
-import { CURATED_TYPES } from './curatedTypes.js';
+import { CURATED_TYPES, TYPICAL_SEATS } from './curatedTypes.js';
 
 const BIZJET_HINTS =
   /citation|gulfstream|learjet|falcon|challenger|global|phenom|praetor|legacy|hawker|honda|premier|beechjet|eclipse|vision|pc-24|sabreliner|westwind|astra|jetstream 41/i;
@@ -115,6 +115,7 @@ export class TypeDb {
         category,
         wiki,
         wtc: icao?.[2] ?? null,
+        seats: TYPICAL_SEATS[c] ?? null,
       };
     }
     const name = icao?.[0] || desc || null;
@@ -131,6 +132,7 @@ export class TypeDb {
       category: categoryFromDesc(icao?.[1], icao?.[2], name ?? '') ?? categoryFromAdsb(adsbCategory) ?? 'narrowbody',
       wiki: null,
       wtc: icao?.[2] ?? null,
+      seats: TYPICAL_SEATS[c] ?? null,
     };
   }
 }

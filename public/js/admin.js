@@ -3,6 +3,7 @@
 import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 import { compassPoint, compassWord, normalizeDeg } from '/shared/geo.js';
 import { distanceUnit, formatDistance, joinUnit, kmToUnit, unitToKm } from '/shared/units.js';
+import { tileSpec } from '/shared/tiles.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -64,7 +65,7 @@ function render() {
   for (const el of $$('[data-unit="distance"]')) el.textContent = distanceUnit(units());
   for (const el of $$('[data-show]')) {
     const [path, value] = el.dataset.show.split('=');
-    el.classList.toggle('shown', String(getPath(draft, path)) === value);
+    el.classList.toggle('shown', value.split('|').includes(String(getPath(draft, path))));
   }
   renderDial();
   renderLocation();
@@ -168,10 +169,7 @@ function initLocationMap() {
     [draft.receiver.lat, draft.receiver.lon],
     9,
   );
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: '© OpenStreetMap contributors',
-  }).addTo(locMap);
+  setLocationTiles();
   locMap.attributionControl.setPrefix(false);
   locMarker = L.circleMarker([draft.receiver.lat, draft.receiver.lon], {
     radius: 7,
@@ -193,8 +191,27 @@ function initLocationMap() {
   });
 }
 
+let locTiles = null;
+let locTilesKey = null;
+/** The location picker uses the same (saved) background map as the display. */
+function setLocationTiles() {
+  const key = `${saved.map.tiles}|${saved.map.tileApiKey}|${saved.map.customTileUrl}`;
+  if (key === locTilesKey) return;
+  locTilesKey = key;
+  if (locTiles) locMap.removeLayer(locTiles);
+  const spec = tileSpec(saved.map, 'light') ?? {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors',
+    subdomains: 'abc',
+  };
+  locTiles = L.tileLayer(spec.url, { maxZoom: 18, attribution: spec.attribution, subdomains: spec.subdomains }).addTo(
+    locMap,
+  );
+}
+
 function renderLocation() {
   if (!locMap) return;
+  setLocationTiles();
   const ll = [draft.receiver.lat, draft.receiver.lon];
   locMarker.setLatLng(ll);
   locCircle.setLatLng(ll).setRadius(draft.display.cycleRangeKm * 1000);

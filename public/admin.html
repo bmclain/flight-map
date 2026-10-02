@@ -226,14 +226,27 @@
           <label
             >Background map
             <select data-path="map.tiles">
-              <option value="carto">CARTO (OpenStreetMap)</option>
-              <option value="osm">OpenStreetMap standard</option>
+              <option value="stadia">Stadia Maps (free API key)</option>
+              <option value="maptiler">MapTiler (free API key)</option>
+              <option value="carto">CARTO (needs a CARTO key)</option>
+              <option value="osm">OpenStreetMap (may be blocked)</option>
               <option value="none">None (offline)</option>
               <option value="custom">Custom tile URL</option>
             </select>
           </label>
           <label class="check align-end"><input type="checkbox" data-path="map.labels" /> Label aircraft</label>
         </div>
+        <label data-show="map.tiles=stadia|maptiler"
+          >Map API key
+          <input type="text" autocomplete="off" spellcheck="false" data-path="map.tileApiKey" />
+          <small
+            >Stadia Maps: sign up free at <a href="https://client.stadiamaps.com/signup/" target="_blank" rel="noopener"
+              >client.stadiamaps.com</a
+            >, create a property, and copy its API key. MapTiler: sign up at
+            <a href="https://cloud.maptiler.com/" target="_blank" rel="noopener">cloud.maptiler.com</a> and copy the key
+            from <em>API keys</em>. The key is sent with each map image, so treat it as public.</small
+          ></label
+        >
         <label data-show="map.tiles=custom"
           >Tile URL
           <input type="url" data-path="map.customTileUrl" placeholder="https://{s}.example.com/{z}/{x}/{y}.png"
@@ -298,8 +311,8 @@
         >
         <div class="indent">
           <label class="check"
-            ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsblol" />
-            adsb.lol</label
+            ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsbim" />
+            adsb.im (recommended)</label
           >
           <label class="check"
             ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsbdb" />

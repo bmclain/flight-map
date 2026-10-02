@@ -111,6 +111,7 @@ export const CURATED_TYPES = {
   DH8C: ['De Havilland', 'Dash 8-300', 'turboprop', 'De Havilland Canada Dash 8'],
   DH8D: ['De Havilland', 'Dash 8-400', 'turboprop', 'De Havilland Canada Dash 8'],
   DHC6: ['De Havilland', 'Twin Otter', 'turboprop', 'De Havilland Canada DHC-6 Twin Otter'],
+  DHC7: ['De Havilland', 'Dash 7', 'turboprop', 'De Havilland Canada Dash 7'],
   DHC2: ['De Havilland', 'Beaver', 'light', 'De Havilland Canada DHC-2 Beaver'],
   DHC3: ['De Havilland', 'Otter', 'light', 'De Havilland Canada DHC-3 Otter'],
   AT43: ['ATR', '42-300', 'turboprop', 'ATR 42'],
@@ -209,6 +210,7 @@ export const CURATED_TYPES = {
   PA46: ['Piper', 'PA-46 Malibu', 'light', 'Piper PA-46'],
   PA18: ['Piper', 'Super Cub', 'light', 'Piper PA-18 Super Cub'],
   PA24: ['Piper', 'Comanche', 'light', 'Piper PA-24 Comanche'],
+  PA30: ['Piper', 'Twin Comanche', 'turboprop', 'Piper PA-30 Twin Comanche'],
   PA31: ['Piper', 'Navajo', 'turboprop', 'Piper PA-31 Navajo'],
   BE33: ['Beechcraft', 'Debonair', 'light', 'Beechcraft Bonanza'],
   BE35: ['Beechcraft', 'V-tail Bonanza', 'light', 'Beechcraft Bonanza'],
@@ -278,4 +280,45 @@ export const CURATED_TYPES = {
   // Odds and ends
   GLID: ['', 'Glider', 'glider', 'Glider (sailplane)'],
   BALL: ['', 'Hot air balloon', 'balloon', 'Hot air balloon'],
+};
+
+// Typical passenger seats as usually configured (airliners: common two-class
+// layouts; small aircraft: seats including the pilot). A rough guide only —
+// every airline configures its cabins differently. Freighters and military
+// transports are left out.
+export const TYPICAL_SEATS = {
+  // Boeing
+  B712: 110, B732: 120, B733: 140, B734: 150, B735: 120, B736: 110, B737: 140, B738: 175, B739: 180,
+  B37M: 150, B38M: 175, B39M: 190, B3XM: 200, B741: 400, B742: 400, B743: 410, B744: 410, B748: 410,
+  B74S: 300, B752: 190, B753: 240, B762: 220, B763: 260, B764: 280, B772: 310, B77L: 300, B773: 370,
+  B77W: 360, B778: 380, B779: 420, B788: 240, B789: 290, B78X: 330,
+  // Airbus
+  BCS1: 120, BCS3: 140, A318: 110, A319: 140, A320: 165, A321: 200, A19N: 140, A20N: 170, A21N: 200,
+  A306: 260, A30B: 250, A310: 220, A332: 250, A333: 290, A338: 260, A339: 290, A342: 260, A343: 290,
+  A345: 290, A346: 340, A359: 315, A35K: 360, A388: 520,
+  // Regional & business
+  E135: 37, E145: 50, E45X: 50, E170: 72, E75S: 76, E75L: 76, E190: 100, E195: 120, E290: 106, E295: 132,
+  E50P: 5, E55P: 8, E545: 9, E550: 12, E35L: 13,
+  CRJ1: 50, CRJ2: 50, CRJ7: 70, CRJ9: 76, CRJX: 100, CL30: 9, CL35: 10, CL60: 12, GLEX: 14, GL5T: 14,
+  GL7T: 17, LJ35: 8, LJ40: 7, LJ45: 9, LJ60: 8, LJ75: 8,
+  DH8A: 37, DH8B: 37, DH8C: 50, DH8D: 78, DHC6: 19, DHC7: 50, DHC2: 6, DHC3: 10,
+  AT43: 48, AT45: 48, AT46: 48, AT72: 70, AT75: 70, AT76: 72, SF34: 34, SB20: 50, B190: 19,
+  MD11: 290, MD82: 150, MD83: 150, MD88: 150, MD90: 160, DC10: 270,
+  C25A: 7, C25B: 8, C25C: 9, C25M: 7, C510: 5, C525: 6, C550: 8, C560: 8, C56X: 9, C680: 9, C68A: 9,
+  C700: 12, C750: 9, GLF4: 14, GLF5: 16, GLF6: 18, G280: 10, GA5C: 15, GA6C: 17, GA7C: 19, GA8C: 19,
+  FA50: 9, F900: 14, F2TH: 10, FA7X: 14, FA8X: 14, FA6X: 16, HDJT: 6, H25B: 8, BE40: 7, PRM1: 6, PC24: 8,
+  SF50: 5,
+  // Turboprops & light aircraft
+  PC12: 9, PC6T: 10, C208: 13, TBM7: 6, TBM8: 6, TBM9: 6, BE9L: 7, BE20: 9, BE30: 11, B350: 11, P46T: 6,
+  C150: 2, C152: 2, C162: 2, C170: 4, C172: 4, C177: 4, C180: 4, C182: 4, C185: 6, C206: 6, T206: 6,
+  C207: 8, C210: 6, C310: 6, C340: 6, C402: 10, C414: 8, C421: 8, SR20: 4, SR22: 5, S22T: 5,
+  P28A: 4, P28B: 4, P28R: 4, P32R: 6, PA32: 6, PA34: 6, PA44: 4, PA46: 6, PA18: 2, PA24: 4, PA30: 4,
+  PA31: 8, BE33: 5, BE35: 5, BE36: 6, BE55: 6, BE58: 6, DA40: 4, DA42: 4, DA62: 7, DV20: 2, M20P: 4,
+  M20T: 4, RV4: 2, RV6: 2, RV7: 2, RV8: 2, RV9: 2, RV10: 4, RV12: 2, RV14: 2, HUSK: 2, A5: 2,
+  // Helicopters
+  R22: 2, R44: 4, R66: 5, EC20: 5, EC30: 7, EC35: 7, EC45: 9, EC55: 13, AS50: 6, AS55: 6, AS65: 12,
+  H160: 12, A109: 7, A139: 15, A169: 10, B06: 5, B06T: 7, B407: 7, B429: 8, B412: 15, B505: 5, S76: 12,
+  H60: 11, MD52: 5, MD60: 8,
+  // Military & other
+  F16: 1, F18H: 1, F18S: 2, F35: 1, T38: 2, GLID: 1, BALL: 4,
 };

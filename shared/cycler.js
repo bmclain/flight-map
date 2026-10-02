@@ -49,7 +49,7 @@ export class Cycler {
     const v = this.view;
 
     if (this.pinned) {
-      if (ctx.pool.some((a) => a.hex === this.pinned)) {
+      if ((ctx.all ?? ctx.pool).some((a) => a.hex === this.pinned)) {
         if (v?.kind !== 'card' || v.hex !== this.pinned) {
           this.view = { kind: 'card', hex: this.pinned, start: now, end: Infinity };
         }
@@ -59,10 +59,24 @@ export class Cycler {
     }
 
     let advance = !v || now >= v.end;
-    if (v?.kind === 'card' && !active.some((a) => a.hex === v.hex)) advance = true;
+    if (v?.kind === 'card') {
+      // A card someone asked for (tapped on the map) may be outside the cycle range.
+      const present = v.manual ? (ctx.all ?? ctx.pool) : active;
+      if (!present.some((a) => a.hex === v.hex)) advance = true;
+    }
     if (v?.kind === 'idle' && active.length) advance = true;
     if (v?.kind === 'map' && ctx.spotlight.length) advance = true;
     return advance ? this.#advance(now, ctx) : v;
+  }
+
+  /** Show a specific aircraft now (e.g. tapped on the map), then carry on cycling. */
+  show(hex, now, ctx) {
+    this.pinned = null;
+    this.view = { kind: 'card', hex, start: now, end: now + ctx.cycleMs, manual: true };
+    this.lastShown.set(hex, now);
+    if (this.history[this.history.length - 1] !== hex) this.history.push(hex);
+    if (this.history.length > HISTORY_LIMIT) this.history.splice(0, this.history.length - HISTORY_LIMIT);
+    return this.view;
   }
 
   /** Skip to the next item immediately (also releases a pin). */

@@ -13,6 +13,7 @@ import {
 import { elevationText, relativeDirectionText, verticalTrend } from '../shared/directions.js';
 import { formatAltitude, formatDistance, formatSpeed, kmToUnit, unitToKm } from '../shared/units.js';
 import { isDaylight, sunElevationDeg } from '../shared/sun.js';
+import { estimateFlightTimes, formatDuration } from '../shared/flighttimes.js';
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg ?? ''} expected ${b} ± ${tol}, got ${a}`);
 
@@ -94,4 +95,30 @@ test('sun elevation: day and night', () => {
   assert.ok(sunElevationDeg(new Date('2026-06-21T08:10:00Z'), 47.6, -122.3) < -10);
   assert.equal(isDaylight(new Date('2026-12-21T20:00:00Z'), 47.6, -122.3), true);
   assert.equal(isDaylight(new Date('2026-12-21T06:00:00Z'), 47.6, -122.3), false);
+});
+
+test('estimated take-off, landing and duration', () => {
+  const yvr = { lat: 49.19, lon: -123.18 };
+  const yxe = { lat: 52.17, lon: -106.7 };
+  // ~1180 km leg; aircraft 2/3 of the way along at 450 kt (833 km/h)
+  const pos = destinationPoint(yvr.lat, yvr.lon, bearingDeg(yvr.lat, yvr.lon, yxe.lat, yxe.lon), 790_000);
+  const now = Date.UTC(2026, 9, 2, 20, 0);
+  const t = estimateFlightTimes({ origin: yvr, destination: yxe }, { ...pos, gsKt: 450, onGround: false }, now);
+  near((t.landing - now) / 60_000, 35, 5, 'minutes to landing');
+  near((now - t.takeoff) / 60_000, 65, 5, 'minutes since take-off');
+  near(t.durationMin, 100, 10, 'duration');
+  assert.equal(t.landing % 300_000, 0, 'rounded to 5 minutes');
+  assert.equal(estimateFlightTimes({ origin: yvr, destination: yxe }, { ...pos, gsKt: 0, onGround: true }, now), null);
+  // A descending airliner near its destination: elapsed time uses cruise speed, not the slow current speed
+  const nearYxe = destinationPoint(yxe.lat, yxe.lon, bearingDeg(yxe.lat, yxe.lon, yvr.lat, yvr.lon), 28_000);
+  const d = estimateFlightTimes(
+    { origin: yvr, destination: yxe },
+    { ...nearYxe, gsKt: 270, onGround: false, typeInfo: { category: 'narrowbody' } },
+    now,
+  );
+  near((d.landing - now) / 60_000, 8, 5, 'landing soon');
+  near(d.durationMin, 105, 15, 'YVR-YXE is under two hours');
+  assert.equal(formatDuration(95), '1 h 35 min');
+  assert.equal(formatDuration(40), '40 min');
+  assert.equal(formatDuration(120), '2 h');
 });

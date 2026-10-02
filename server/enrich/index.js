@@ -7,6 +7,36 @@ import { PhotoResolver } from './photos.js';
 
 const DB_REFRESH_MS = 24 * 3600_000;
 
+// Freight operators: their aircraft carry boxes, not passengers.
+const CARGO_ICAO = new Set([
+  'FDX', // FedEx
+  'UPS',
+  'CJT', // Cargojet
+  'KFA', // Kelowna Flightcraft (Purolator)
+  'CKS', // Kalitta
+  'GTI', // Atlas Air
+  'PAC', // Polar
+  'ABX',
+  'ATN', // Air Transport International
+  'NCR', // National Air Cargo
+  'AJT', // Amerijet
+  'WGN', // Western Global
+  'CLX', // Cargolux
+  'GEC', // Lufthansa Cargo
+  'BOX', // AeroLogic
+  'BCS', // DHL / European Air Transport
+  'DHK', // DHL Air UK
+  'CAO', // Air China Cargo
+  'CKK', // China Cargo
+  'ICL', // CAL Cargo
+]);
+const CARGO_NAME = /\b(cargo|freight|fedex|ups|purolator|dhl|kalitta|atlas air|polar air)\b/i;
+
+/** True when the callsign belongs to a freight airline. */
+export function isCargoOperator(icao, name) {
+  return (!!icao && CARGO_ICAO.has(icao)) || (!!name && CARGO_NAME.test(name));
+}
+
 /** "Jetblue Airways Corporation" → "Jetblue Airways", "Horizon Air Industries" → "Horizon Air". */
 export function cleanAirlineName(name) {
   if (!name) return name;
@@ -111,6 +141,7 @@ export class Enricher {
       typeInfo,
       airline,
       military: ac.military || !!db?.military,
+      cargo: isCargoOperator(airline?.icao ?? /^([A-Z]{3})\d/.exec(ac.callsign ?? '')?.[1], airline?.name),
       route,
       routeStatus,
       photo,

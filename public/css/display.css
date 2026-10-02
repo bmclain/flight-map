@@ -132,7 +132,7 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
     'head head'
     'photo route'
     'photo where'
-    'stats where';
+    'stats stats';
   transition:
     opacity 0.3s ease,
     transform 0.3s ease;
@@ -348,8 +348,24 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
 .route .to {
   text-align: right;
 }
+.route .time {
+  margin-top: 0.8cqmin;
+  font-size: 2.6cqmin;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.route .duration {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  translate: -50% 0.6cqmin;
+  font-size: 2.4cqmin;
+  color: var(--muted);
+  white-space: nowrap;
+}
 
 .route-line {
+  position: relative;
   align-self: center;
   display: flex;
   align-items: center;
@@ -486,7 +502,7 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   grid-area: stats;
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1.6cqmin;
 }
 .stat {
@@ -623,6 +639,16 @@ body[data-layout='split'] .map-title {
 .ac-marker {
   background: none;
   border: none;
+}
+/* Planes on the map can be tapped; give them a finger-sized hit area. */
+.ac-marker {
+  cursor: pointer;
+}
+.ac-marker::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
 }
 .ac-marker .glyph {
   position: absolute;
@@ -853,26 +879,34 @@ body.show-controls #controls {
 
 /* ---- container-size variants (must come after the base rules) ---------------- */
 
-/* Square-ish (split layout, small landscape windows): photo across the top,
-   pointer and stats side by side underneath. */
+/* Square-ish (split layout, small landscape windows): photo and pointer side
+   by side, route full width, stats along the bottom. */
 @container card (aspect-ratio < 1.15) {
   #card {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       'head head'
-      'photo photo'
+      'photo where'
       'route route'
-      'where stats';
+      'stats stats';
   }
   .model {
     font-size: 12cqmin;
   }
-  .stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .stat dd {
-    font-size: 5cqmin;
+    font-size: 4.4cqmin;
+  }
+  .route .city {
+    font-size: 6cqmin;
+  }
+  .where {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+  .where .elev {
+    justify-content: center;
   }
   .where {
     gap: 2cqmin;
@@ -903,15 +937,21 @@ body.show-controls #controls {
   .model {
     font-size: 13cqmin;
   }
-  .stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .route .city {
+    font-size: 7cqmin;
   }
   .stat dd {
-    font-size: 5.6cqmin;
+    font-size: 5cqmin;
   }
   .where {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
     gap: 3cqmin;
     padding: 2.4cqmin 2.8cqmin;
+  }
+  .where .elev {
+    justify-content: flex-start;
   }
   .where .elev {
     font-size: 3.2cqmin;

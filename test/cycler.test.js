@@ -123,3 +123,16 @@ test('next, prev and pin', () => {
   assert.notEqual(c.update(101_000, ctx([pool[0], pool[2]])).hex, 'b');
   assert.equal(c.pinned, null);
 });
+
+test('show() brings up a tapped aircraft, even outside the cycle range, then cycling resumes', () => {
+  const c = new Cycler();
+  const pool = [ac('a', 1), ac('b', 2)];
+  const far = ac('far', 50);
+  const all = [...pool, far];
+  c.update(0, ctx(pool, { all }));
+  assert.equal(c.show('far', 1000, ctx(pool, { all })).hex, 'far');
+  assert.equal(c.update(5000, ctx(pool, { all })).hex, 'far', 'stays for its slot');
+  assert.notEqual(c.update(11_000, ctx(pool, { all })).hex, 'far', 'then cycling resumes');
+  c.show('far', 12_000, ctx(pool, { all }));
+  assert.notEqual(c.update(13_000, ctx(pool, { all: pool })).hex, 'far', 'leaves when the plane disappears');
+});

@@ -38,7 +38,10 @@ export const DEFAULT_CONFIG = {
     seconds: 15,
     idle: 'map',
     orientation: 'north-up',
-    tiles: 'carto',
+    // 'stadia' / 'maptiler' need a free API key in tileApiKey; without one the
+    // map shows no background.
+    tiles: 'stadia',
+    tileApiKey: '',
     customTileUrl: '',
     trailMinutes: 5,
     labels: true,
@@ -46,8 +49,9 @@ export const DEFAULT_CONFIG = {
   enrichment: {
     aircraftDb: true,
     routes: true,
-    // adsb.lol's route API currently answers with an empty body; adsbdb is the default.
-    routeProviders: ['adsbdb'],
+    // adsb.im first (what tar1090 uses), adsbdb as a fallback. 'adsblol' is also
+    // accepted but its route API currently answers with an empty body.
+    routeProviders: ['adsbim', 'adsbdb'],
     hideImplausibleRoutes: true,
     // 'airframe' = photo of the exact plane (planespotters.net), falling back to the type photo
     // 'type'     = one consistent photo per aircraft type (Wikipedia / your own library)
@@ -114,7 +118,8 @@ const SCHEMA = {
     seconds: num(3, 600),
     idle: oneOf(['map', 'clock']),
     orientation: oneOf(['north-up', 'facing-up']),
-    tiles: oneOf(['carto', 'osm', 'none', 'custom']),
+    tiles: oneOf(['stadia', 'maptiler', 'carto', 'osm', 'none', 'custom']),
+    tileApiKey: str(200),
     customTileUrl: str(500),
     trailMinutes: num(0, 60),
     labels: bool(),
@@ -122,7 +127,7 @@ const SCHEMA = {
   enrichment: {
     aircraftDb: bool(),
     routes: bool(),
-    routeProviders: subsetOf(['adsblol', 'adsbdb']),
+    routeProviders: subsetOf(['adsbim', 'adsblol', 'adsbdb']),
     hideImplausibleRoutes: bool(),
     photoMode: oneOf(['airframe', 'type', 'off']),
   },

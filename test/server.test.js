@@ -151,6 +151,10 @@ test('API: config, aircraft, status, static files', async (t) => {
   assert.ok(ac.aircraft.length > 0, 'simulator traffic is visible');
   assert.ok(Array.isArray(ac.aircraft[0].trail));
 
+  const hex = ac.aircraft[0].hex;
+  assert.equal((await fetch(`${base}/api/aircraft/${hex}/lookup`, { method: 'POST' })).status, 202);
+  assert.equal((await fetch(`${base}/api/aircraft/000000/lookup`, { method: 'POST' })).status, 404);
+
   const status = await (await fetch(`${base}/api/status`)).json();
   assert.equal(status.source.type, 'simulator');
 

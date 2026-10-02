@@ -7,7 +7,9 @@ where it's going and where to look. It cycles through the aircraft nearby, one a
 - **a photo** of that exact aircraft, or a consistent per-type photo, or a silhouette
 - **where it's from and where it's going** (San Francisco → Seattle)
 - **an arrow that points at it** from where you stand, plus how high to look ("Ahead, to the left · 32° up")
-- **distance, altitude (climbing/descending), speed and heading**
+- **distance, altitude (climbing/descending), speed, heading and typical seats** (or "Cargo" for freight airlines)
+- **estimated take-off time, landing time and flight duration**, worked out from the route and the plane's live
+  position and speed
 - a **map overview** every few aircraft, or always alongside in the split layout
 
 A **control panel** sets the cycle time, ranges, altitude filters, the screen's direction (with a "tap the plane you can
@@ -77,6 +79,7 @@ skipped. Every few cards (default 5) the **map** is shown for a while. When noth
 map (or a clock) with the nearest traffic.
 
 - **Tap the right side** (or swipe left, or press →) for the next aircraft. **Tap the left side** (or ←) goes back.
+- **Tap a plane on the map** to bring up its card (it gets its route and photo looked up even if it's far away).
 - **Tap anywhere** to bring up controls: hold on this aircraft (space), show the map (M), full screen (F), settings.
 - **Spotlight** (off by default): when an aircraft is very close and low, probably the one you're staring at, the
   display stays on it instead of cycling. Leave it off or keep the radius small if you live under an approach path.
@@ -143,11 +146,30 @@ Credits (photographer / Commons author and licence) are shown on the photo.
 
 ## Routes
 
-Origin and destination come from the free community route database at [adsbdb.com](https://www.adsbdb.com), which also
-supplies airline names and IATA flight numbers. [adsb.lol](https://api.adsb.lol)'s batch route API can be switched on
-in the control panel, but at the time of writing it answers with an empty response. Results are cached for 12 hours. These databases are crowd-sourced and occasionally out of date, so by
-default a route is hidden when it plainly doesn't match where the plane is (for example a "Miami → New York" flight over
-Seattle). Private and general-aviation flights have no published route.
+Origin and destination come from the free community route database at [adsb.im](https://adsb.im) (the same data
+tar1090 shows), batched, with [adsbdb.com](https://www.adsbdb.com) as a fallback (it also supplies airline names and
+IATA flight numbers). Results are cached for 12 hours. These databases are crowd-sourced and occasionally out of date,
+and airlines reuse flight numbers, so by default a route is hidden when it plainly doesn't match where the plane is.
+Private, charter and general-aviation flights usually have no published route. (adsb.lol serves the same API but
+currently answers with an empty response; it's still selectable.)
+
+**Times are estimates.** The free databases have no schedules, so take-off and landing times are calculated from the
+distance flown and remaining at the aircraft's speed (typical cruise speed for the part we didn't see). Landing times
+are usually within about 15 minutes; take-off times are rougher. Exact times would need a paid flight-status API such
+as FlightAware AeroAPI.
+
+## Map background
+
+CARTO's free basemaps now show "API key required" watermarks, and OpenStreetMap's volunteer-run tile servers block
+apps like this. Use a provider with a free key:
+
+1. **Stadia Maps** (recommended, free for non-commercial use): sign up at <https://client.stadiamaps.com/signup/>,
+   create a _property_, and copy its API key.
+2. Or **MapTiler**: sign up at <https://cloud.maptiler.com/> and copy a key from _API keys_.
+3. In `/admin` → **Map overview** → _Background map_, choose the provider, paste the key into **Map API key**, and Save.
+
+The key travels with every map image the tablet downloads, so treat it as public (both providers let you restrict a
+key to your own domains). Without a key the map simply has no background. Without internet, choose _None_.
 
 ## Configuration
 
@@ -171,9 +193,9 @@ Everything is editable in `/admin` and stored in `data/config.json`. Changes rea
 | `map.everyCards` / `map.seconds`       | 5 / 15                                                | 0 = never interleave the map                                                               |
 | `map.rangeKm`                          | 64.37 (40 mi)                                         | aircraft shown on the map                                                                  |
 | `map.orientation`                      | `north-up`                                            | or `facing-up`                                                                             |
-| `map.tiles`                            | `carto`                                               | `carto`, `osm`, `none` (offline) or `custom` + `map.customTileUrl`                         |
+| `map.tiles` / `map.tileApiKey`         | `stadia` / empty                                      | `stadia` or `maptiler` (free key needed), `carto`, `osm`, `none` (offline), `custom`       |
 | `enrichment.photoMode`                 | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
-| `enrichment.routes` / `routeProviders` | on / adsbdb (adsb.lol optional)                       |                                                                                            |
+| `enrichment.routes` / `routeProviders` | on / adsb.im, adsbdb                                  |                                                                                            |
 
 Environment variables: `PORT` (8080), `DATA_DIR` (`./data`), `ADMIN_PASSWORD` (if set, needed to change settings),
 and first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (ignored once `config.json` exists).
@@ -201,7 +223,7 @@ and browser), `public/` (display and control panel, plain ES modules), `test/`.
 ## Credits
 
 - Aircraft, type and operator data: [tar1090-db](https://github.com/wiedehopf/tar1090-db) by wiedehopf.
-- Routes: [adsb.lol](https://adsb.lol) and [adsbdb](https://www.adsbdb.com).
+- Routes: [adsb.im](https://adsb.im) and [adsbdb](https://www.adsbdb.com).
 - Photos: [planespotters.net](https://www.planespotters.net) photographers and Wikimedia Commons contributors (credited on
   screen).
 - Map: [Leaflet](https://leafletjs.com), © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © CARTO.

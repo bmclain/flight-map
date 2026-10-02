@@ -46,7 +46,8 @@ export const DEFAULT_CONFIG = {
   enrichment: {
     aircraftDb: true,
     routes: true,
-    routeProviders: ['adsblol', 'adsbdb'],
+    // adsb.lol's route API currently answers with an empty body; adsbdb is the default.
+    routeProviders: ['adsbdb'],
     hideImplausibleRoutes: true,
     // 'airframe' = photo of the exact plane (planespotters.net), falling back to the type photo
     // 'type'     = one consistent photo per aircraft type (Wikipedia / your own library)

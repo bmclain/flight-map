@@ -143,9 +143,9 @@ Credits (photographer / Commons author and licence) are shown on the photo.
 
 ## Routes
 
-Origin and destination come from the free community route databases at [adsb.lol](https://api.adsb.lol) (batched, the
-same data tar1090 shows) and [adsbdb.com](https://www.adsbdb.com), which also supplies airline names and IATA flight
-numbers. Results are cached for 12 hours. These databases are crowd-sourced and occasionally out of date, so by
+Origin and destination come from the free community route database at [adsbdb.com](https://www.adsbdb.com), which also
+supplies airline names and IATA flight numbers. [adsb.lol](https://api.adsb.lol)'s batch route API can be switched on
+in the control panel, but at the time of writing it answers with an empty response. Results are cached for 12 hours. These databases are crowd-sourced and occasionally out of date, so by
 default a route is hidden when it plainly doesn't match where the plane is (for example a "Miami → New York" flight over
 Seattle). Private and general-aviation flights have no published route.
 
@@ -173,7 +173,7 @@ Everything is editable in `/admin` and stored in `data/config.json`. Changes rea
 | `map.orientation`                      | `north-up`                                            | or `facing-up`                                                                             |
 | `map.tiles`                            | `carto`                                               | `carto`, `osm`, `none` (offline) or `custom` + `map.customTileUrl`                         |
 | `enrichment.photoMode`                 | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
-| `enrichment.routes` / `routeProviders` | on / adsb.lol, adsbdb                                 |                                                                                            |
+| `enrichment.routes` / `routeProviders` | on / adsbdb (adsb.lol optional)                       |                                                                                            |
 
 Environment variables: `PORT` (8080), `DATA_DIR` (`./data`), `ADMIN_PASSWORD` (if set, needed to change settings),
 and first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (ignored once `config.json` exists).

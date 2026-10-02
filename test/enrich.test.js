@@ -217,6 +217,7 @@ test('resolveLeg picks the leg being flown and flags implausible routes', () => 
 
 test('RouteResolver batches adsb.lol lookups and falls back to adsbdb', async () => {
   const cfg = config();
+  cfg.enrichment.routeProviders = ['adsblol', 'adsbdb'];
   const fetchImpl = fakeFetch([
     [
       'https://api.adsb.lol/api/0/routeset',

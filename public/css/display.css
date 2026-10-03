@@ -21,6 +21,13 @@ body[data-theme='dark'] {
   --danger: #ff6b6b;
   --map-plane: #dbe6f5;
   --map-plane-dim: #7d8ca3;
+  --sp-police: #3b7bff;
+  --sp-ambulance: #f04848;
+  --sp-firefighting: #f2701c;
+  --sp-rescue: #f2c218;
+  --sp-military: #6f9a2e;
+  --sp-government: #9068e8;
+  --sp-other: #1a9fb8;
   color-scheme: dark;
 }
 
@@ -38,6 +45,13 @@ body[data-theme='light'] {
   --danger: #c81e1e;
   --map-plane: #0a0f1a;
   --map-plane-dim: #6b7486;
+  --sp-police: #1f5fe0;
+  --sp-ambulance: #d42a2a;
+  --sp-firefighting: #d9590c;
+  --sp-rescue: #e0ac00;
+  --sp-military: #4f7a12;
+  --sp-government: #6d3fd6;
+  --sp-other: #0e7f96;
   color-scheme: light;
 }
 
@@ -138,6 +152,16 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
     transform 0.3s ease;
 }
 
+/* With the mini map: it sits beside "where to look", under the route. */
+#card.with-mini {
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.5fr) minmax(0, 0.5fr);
+  grid-template-areas:
+    'head head head'
+    'photo route route'
+    'photo where mini'
+    'stats stats stats';
+}
+
 #card.swapping {
   opacity: 0;
   transform: translateY(1.2cqmin);
@@ -231,6 +255,44 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   color: #fff;
 }
 
+/* Special aircraft (police, air ambulance, …): one colour per kind. */
+.sp-police,
+[data-special='police'] {
+  --sp: var(--sp-police);
+}
+.sp-ambulance,
+[data-special='ambulance'] {
+  --sp: var(--sp-ambulance);
+}
+.sp-firefighting,
+[data-special='firefighting'] {
+  --sp: var(--sp-firefighting);
+}
+.sp-rescue,
+[data-special='rescue'] {
+  --sp: var(--sp-rescue);
+  --sp-ink: #1a1400;
+}
+.sp-military,
+[data-special='military'] {
+  --sp: var(--sp-military);
+}
+.sp-government,
+[data-special='government'] {
+  --sp: var(--sp-government);
+}
+.sp-other,
+[data-special='other'] {
+  --sp: var(--sp-other);
+}
+.sp-emergency {
+  --sp: var(--danger);
+}
+.badge.sp {
+  background: var(--sp);
+  color: var(--sp-ink, #fff);
+}
+
 /* photo */
 
 .photo {
@@ -307,20 +369,14 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   opacity: 1;
 }
 
-/* mini map of the flight, inset in the corner of the photo */
+/* mini map of the flight, in its own panel */
 
 .minimap {
-  position: absolute;
-  left: 1.6cqmin;
-  bottom: 1.6cqmin;
-  width: 44%;
-  height: 52%;
-  z-index: 2;
-  border-radius: 1.8cqmin;
+  grid-area: mini;
+  position: relative;
+  border-radius: 2.4cqmin;
   overflow: hidden;
-  background: var(--bg);
-  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
-  box-shadow: 0 0.6cqmin 2.4cqmin rgba(0, 0, 0, 0.35);
+  background: var(--panel);
   pointer-events: none;
 }
 .minimap[hidden] {
@@ -329,10 +385,7 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
 .minimap .mm-map {
   position: absolute;
   inset: 0;
-  background: var(--bg);
-}
-.minimap .mm-map.osm-dark .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+  background: var(--panel);
 }
 .minimap .mm-attrib {
   position: absolute;
@@ -382,11 +435,6 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   background: color-mix(in srgb, var(--bg) 75%, transparent);
   white-space: nowrap;
 }
-/* The photo credit sits bottom right; keep it clear of the inset. */
-.photo:has(.minimap:not([hidden])) figcaption {
-  max-width: 54%;
-}
-
 /* route */
 
 .route {
@@ -413,6 +461,7 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   font-weight: 600;
   font-size: 7cqmin;
   line-height: 0.98;
+  padding-bottom: 0.1em; /* room for descenders under the clamp */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -432,7 +481,6 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   margin-top: 0.8cqmin;
   font-size: 2.6cqmin;
   color: var(--muted);
-  white-space: nowrap;
 }
 .route .duration {
   position: absolute;
@@ -576,6 +624,30 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   fill: var(--accent);
 }
 
+/* Beside the mini map (landscape): dial above the words. */
+#card.with-mini .where {
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.6cqmin;
+  padding: 2cqmin;
+  text-align: center;
+}
+#card.with-mini .pointer {
+  flex: 1 1 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: 30cqmin;
+}
+#card.with-mini .where .dir {
+  font-size: 5cqmin;
+}
+#card.with-mini .where .elev {
+  justify-content: center;
+  margin-top: 1cqmin;
+  font-size: 2.8cqmin;
+}
+
 /* stats */
 
 .stats {
@@ -641,9 +713,6 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
 }
 body[data-theme='light'] .leaflet-tile-pane {
   filter: saturate(0.85);
-}
-#map.osm-dark .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
 }
 .ring-label span {
   position: absolute;
@@ -774,6 +843,14 @@ body[data-layout='split'] .map-title {
 }
 .ac-marker:not(.in-cycle):not(.current) .label {
   display: none;
+}
+/* Special aircraft are always labelled, in their colour. */
+.ac-marker[data-special]:not([data-special='']) .label {
+  display: block;
+}
+.ac-marker[data-special]:not([data-special='']) .label span {
+  background: var(--sp);
+  color: var(--sp-ink, #fff);
 }
 
 .you-marker .pulse {
@@ -1005,6 +1082,37 @@ body.show-controls #controls {
   .stat {
     padding: 1.2cqmin 1.8cqmin;
   }
+
+  /* With the mini map: a compact "where" row above it, both beside the photo. */
+  #card.with-mini {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'head head'
+      'photo where'
+      'photo mini'
+      'route route'
+      'stats stats';
+  }
+  #card.with-mini .where {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 2.4cqmin;
+    padding: 2cqmin 2.4cqmin;
+    text-align: left;
+  }
+  #card.with-mini .pointer {
+    flex: 0 0 auto;
+    width: auto;
+    height: 14cqmin;
+    max-height: 14cqmin;
+  }
+  #card.with-mini .where .dir {
+    font-size: 4.6cqmin;
+  }
+  #card.with-mini .where .elev {
+    justify-content: flex-start;
+  }
 }
 
 /* Tall (portrait tablet): everything stacked. */
@@ -1046,6 +1154,369 @@ body.show-controls #controls {
     height: 26cqmin;
     max-height: 26cqmin;
   }
+
+  /* With the mini map: "where" and the map side by side under the route. */
+  #card.with-mini {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'head head'
+      'photo photo'
+      'route route'
+      'where mini'
+      'stats stats';
+  }
+  #card.with-mini .where {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2cqmin;
+    padding: 2.4cqmin;
+    text-align: center;
+  }
+  #card.with-mini .pointer {
+    flex: 0 0 auto;
+    width: auto;
+    height: 20cqmin;
+    max-height: 20cqmin;
+  }
+  #card.with-mini .where .dir {
+    font-size: 5.4cqmin;
+  }
+  #card.with-mini .where .elev {
+    justify-content: center;
+  }
+}
+
+/* ---- alerts: special aircraft you asked about, and emergencies ----------------------- */
+
+#alerts {
+  position: fixed;
+  top: 1.2vmin;
+  right: 3.4vmin;
+  z-index: 950;
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  gap: 0.8vmin;
+  max-width: 70vw;
+  pointer-events: none;
+}
+/* Clear of the map's compass. */
+body[data-view='map'] #alerts,
+body[data-view='idle-map'] #alerts,
+body[data-layout='split'] #alerts {
+  top: 2.4vmin;
+  right: 10.8vmin;
+}
+#alerts .alert {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.45em 1em 0.45em 0.8em;
+  border: 0;
+  border-radius: 99px;
+  font: 500 max(12px, 1.7vmin) / 1.2 var(--font-ui);
+  color: var(--sp-ink, #fff);
+  background: var(--sp);
+  box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+#alerts .alert b {
+  font-weight: 700;
+}
+#alerts .al-where {
+  opacity: 0.85;
+}
+#alerts .dot {
+  flex: none;
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  background: currentColor;
+  animation: alert-pulse 1.6s ease-in-out infinite;
+}
+/* Police: red and white lights. */
+#alerts .sp-police .dot {
+  animation: police-lights 0.8s steps(1) infinite;
+}
+@keyframes alert-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes police-lights {
+  0% {
+    background: #ff3b3b;
+  }
+  50% {
+    background: #fff;
+  }
+}
+
+/* ---- map pop-up: a compact card for a tapped plane ----------------------------------- */
+
+.ac-pop {
+  position: absolute;
+  left: 2vmin;
+  bottom: 2vmin;
+  z-index: 900;
+  width: clamp(270px, 56%, 390px);
+  max-height: calc(100% - 4vmin);
+  overflow: hidden;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font: 14px/1.3 var(--font-ui);
+  container: pop / inline-size;
+}
+.ac-pop.right {
+  left: auto;
+  right: 2vmin;
+  bottom: calc(2vmin + 16px); /* clear of the map attribution */
+}
+.ac-pop[hidden] {
+  display: none;
+}
+.pop-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pop-head {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding-right: 26px;
+}
+.pop-photo {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.pop-photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.pop-photo.has-photo img {
+  opacity: 1;
+}
+.pop-sil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.pop-sil svg {
+  width: 62%;
+  height: 62%;
+  fill: var(--muted);
+  opacity: 0.55;
+  transform: rotate(90deg);
+}
+.pop-photo.has-photo .pop-sil {
+  opacity: 0;
+}
+.pop-maker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pop-model {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pop-flight {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pop-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.pop-badges:empty {
+  display: none;
+}
+.pop-badges .badge {
+  font-size: 10px;
+  padding: 2px 7px;
+}
+.pop-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.pop-route .ap b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent);
+}
+.pop-route .ap span {
+  display: block;
+  margin-top: 2px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pop-route small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pop-route .to {
+  text-align: right;
+}
+.pop-route .mid {
+  text-align: center;
+}
+.pop-route .mid svg {
+  width: 22px;
+  height: 22px;
+  fill: var(--accent);
+}
+.pop-route .none {
+  grid-column: 1 / -1;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--muted);
+}
+.pop-where {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.pop-where svg {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  overflow: visible;
+}
+.pop-where .ring {
+  fill: var(--panel-2);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+.pop-where .tick {
+  stroke: var(--muted);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+#pop-arrow {
+  fill: var(--accent);
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transition: transform 0.9s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.pop-dir {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.05;
+}
+.pop-elev {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.pop-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.pop-stats dt {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Narrow pop-up (split layout): stats on two rows. */
+@container pop (max-width: 340px) {
+  .pop-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 8px;
+  }
+}
+.pop-stats dd {
+  margin: 2px 0 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  white-space: nowrap;
+}
+.pop-stats .u {
+  margin-left: 2px;
+  font-size: 0.68em;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pop-stats .trend {
+  margin-left: 2px;
+  font-size: 0.7em;
+  color: var(--accent);
+}
+.pop-full {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 600 14px var(--font-ui);
+  cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {

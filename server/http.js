@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDayKey } from './traffic.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODULES = path.join(ROOT, 'node_modules');
@@ -21,6 +22,7 @@ const STATIC_MOUNTS = [
 const PAGES = {
   '/display': path.join(ROOT, 'public', 'display.html'),
   '/admin': path.join(ROOT, 'public', 'admin.html'),
+  '/traffic': path.join(ROOT, 'public', 'traffic.html'),
   '/manifest.webmanifest': path.join(ROOT, 'public', 'manifest.webmanifest'),
 };
 
@@ -113,6 +115,12 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
       }),
 
     'GET /api/status': (req, res) => sendJson(res, 200, app.status()),
+
+    'GET /api/traffic': async (req, res, url) => {
+      const date = url.searchParams.get('date');
+      if (date && !isDayKey(date)) return sendJson(res, 400, { error: 'date must be YYYY-MM-DD' });
+      sendJson(res, 200, await app.traffic.summary(date || undefined));
+    },
 
     'POST /api/source/test': async (req, res) => {
       if (!checkAuth(req)) return sendJson(res, 401, { error: 'Admin password required' });

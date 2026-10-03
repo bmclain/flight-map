@@ -18,7 +18,10 @@
           <p>Control panel</p>
         </div>
       </div>
-      <a class="btn ghost" href="/display" target="_blank" rel="noopener">Open display ↗</a>
+      <nav class="top-links">
+        <a class="btn ghost" href="/traffic">Daily traffic</a>
+        <a class="btn ghost" href="/display" target="_blank" rel="noopener">Open display ↗</a>
+      </nav>
     </header>
 
     <main class="grid">
@@ -228,7 +231,7 @@
             <select data-path="map.tiles">
               <option value="stadia">Stadia Maps (free API key)</option>
               <option value="maptiler">MapTiler (free API key)</option>
-              <option value="carto">CARTO (needs a CARTO key)</option>
+              <option value="carto">CARTO (free API key)</option>
               <option value="osm">OpenStreetMap (may be blocked)</option>
               <option value="none">None (offline)</option>
               <option value="custom">Custom tile URL</option>
@@ -240,15 +243,17 @@
           ><input type="checkbox" data-path="map.miniMap" /> Show a mini map of each flight's route on the aircraft
           card</label
         >
-        <label data-show="map.tiles=stadia|maptiler"
+        <label data-show="map.tiles=stadia|maptiler|carto"
           >Map API key
           <input type="text" autocomplete="off" spellcheck="false" data-path="map.tileApiKey" />
           <small
-            >Stadia Maps: sign up free at <a href="https://client.stadiamaps.com/signup/" target="_blank" rel="noopener"
-              >client.stadiamaps.com</a
-            >, create a property, and copy its API key. MapTiler: sign up at
+            >Stadia Maps: sign up free at
+            <a href="https://client.stadiamaps.com/signup/" target="_blank" rel="noopener">client.stadiamaps.com</a>,
+            create a property, and copy its API key. MapTiler: sign up at
             <a href="https://cloud.maptiler.com/" target="_blank" rel="noopener">cloud.maptiler.com</a> and copy the key
-            from <em>API keys</em>. The key is sent with each map image, so treat it as public.</small
+            from <em>API keys</em>. CARTO: request one at
+            <a href="https://carto.com/basemaps/apikey/" target="_blank" rel="noopener">carto.com/basemaps/apikey</a>
+            (it arrives by email). The key is sent with each map image, so treat it as public.</small
           ></label
         >
         <label data-show="map.tiles=custom"
@@ -315,8 +320,8 @@
         >
         <div class="indent">
           <label class="check"
-            ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsbim" />
-            adsb.im (recommended)</label
+            ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsbim" /> adsb.im
+            (recommended)</label
           >
           <label class="check"
             ><input type="checkbox" data-path="enrichment.routeProviders" data-kind="list" value="adsbdb" />
@@ -331,6 +336,56 @@
           ><input type="checkbox" data-path="enrichment.aircraftDb" /> Use the tar1090 aircraft database for types &amp;
           registrations</label
         >
+      </section>
+
+      <!-- Daily traffic ------------------------------------------------------------------->
+      <section class="card" id="traffic-settings">
+        <h2>Daily traffic</h2>
+        <p class="help">
+          The <a href="/traffic">daily traffic</a> page can show where flights from your local airport go, and where its
+          arrivals come from. A flight counts when it's seen low near the airport.
+        </p>
+        <div class="row-2">
+          <label
+            >Local airport code
+            <input
+              type="text"
+              maxlength="4"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="e.g. YXE"
+              data-path="traffic.airport.code"
+            /><small>The 3-letter code routes use. Leave empty to turn this off.</small></label
+          >
+          <label>Airport elevation (ft) <input type="number" step="1" data-path="traffic.airport.elevationFt" /></label>
+        </div>
+        <div class="row-2">
+          <label>Latitude <input type="number" step="0.0001" data-path="traffic.airport.lat" /></label>
+          <label>Longitude <input type="number" step="0.0001" data-path="traffic.airport.lon" /></label>
+        </div>
+        <div class="row-2">
+          <label
+            >Lower than (ft above the airport)
+            <input type="number" min="500" max="10000" step="500" data-path="traffic.airport.maxHeightFt"
+          /></label>
+          <label
+            >Within (<span data-unit="distance"></span>)
+            <input type="number" min="1" step="1" data-path="traffic.airport.radiusKm" data-kind="distance"
+          /></label>
+        </div>
+      </section>
+
+      <!-- Special aircraft ---------------------------------------------------------------->
+      <section class="card span-2" id="special-settings">
+        <h2>Special aircraft</h2>
+        <p class="help">
+          Police, air ambulance, military and government aircraft get a coloured badge. Many are recognised from the
+          aircraft database; add your own here by registration (<code>C-FSPS</code>), callsign or hex code. End with
+          <code>*</code> to match the start of a callsign (<code>STAR*</code>). Tick <em>Alert</em> to show a notice on
+          the display whenever it's in range.
+        </p>
+        <div id="special-rows" class="sp-rows"></div>
+        <button type="button" class="btn ghost" id="special-add">Add aircraft</button>
       </section>
 
       <!-- Preview ------------------------------------------------------------------------->

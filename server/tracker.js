@@ -42,6 +42,11 @@ export class Tracker {
     this.lastUpdate = now;
   }
 
+  /** Forget every aircraft, e.g. when the data source changes. */
+  clear() {
+    this.planes.clear();
+  }
+
   /**
    * Aircraft with a recent position inside the larger of the map and cycle
    * ranges, nearest first, with geometry relative to the receiver.
@@ -68,7 +73,8 @@ export class Tracker {
       let extra = { reg: ac.reg, typeInfo: null };
       try {
         // Only look up routes/photos for aircraft that may soon get a card.
-        if (this.enricher) extra = this.enricher.enrich(ac, { lookup: dist / 1000 <= lookupKm || this.wanted.has(hex) });
+        if (this.enricher)
+          extra = this.enricher.enrich(ac, { lookup: dist / 1000 <= lookupKm || this.wanted.has(hex) });
       } catch (err) {
         this.#enrichError(err);
       }

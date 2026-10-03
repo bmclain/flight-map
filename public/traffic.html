@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Overhead · Daily traffic</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/css/fonts.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/traffic.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <img src="/favicon.svg" alt="" width="32" height="32" />
+        <div>
+          <h1>Overhead</h1>
+          <p>Daily traffic</p>
+        </div>
+      </div>
+      <nav class="top-links">
+        <a class="btn ghost" href="/display">Display</a>
+        <a class="btn ghost" href="/admin">Settings</a>
+      </nav>
+    </header>
+
+    <main class="grid">
+      <section class="card span-2 day-head">
+        <div class="day-nav">
+          <button type="button" class="btn ghost" id="prev" aria-label="Previous day">‹</button>
+          <div>
+            <h2 id="day-title">…</h2>
+            <input type="date" id="day-pick" aria-label="Pick a day" />
+          </div>
+          <button type="button" class="btn ghost" id="next" aria-label="Next day">›</button>
+          <button type="button" class="btn ghost" id="today">Today</button>
+        </div>
+        <p class="sentence" id="sentence"></p>
+        <div class="tiles" id="tiles"></div>
+      </section>
+
+      <section class="card span-2">
+        <h2>Busiest times <small class="muted">flights first seen in each hour</small></h2>
+        <div class="chart" id="hourly"></div>
+      </section>
+
+      <section class="card span-2" id="apt-card">
+        <div class="tally-head">
+          <h2 id="apt-title">Local airport</h2>
+          <div class="tabs" role="tablist" id="apt-tabs">
+            <button type="button" role="tab" data-span="day" aria-selected="true">This day</button>
+            <button type="button" role="tab" data-span="30" aria-selected="false">Last 30 days</button>
+          </div>
+        </div>
+        <p class="help" id="apt-help"></p>
+        <div class="apt-body">
+          <div class="apt-cols">
+            <div>
+              <h3>Departures <small class="muted" id="apt-dep-n"></small></h3>
+              <ol class="bars" id="apt-dep"></ol>
+            </div>
+            <div>
+              <h3>Arrivals <small class="muted" id="apt-arr-n"></small></h3>
+              <ol class="bars" id="apt-arr"></ol>
+            </div>
+          </div>
+          <div id="apt-unusual-wrap">
+            <h3>Off-schedule <small class="muted">came low near the airport, but their route doesn't use it</small></h3>
+            <ul class="apt-unusual" id="apt-unusual"></ul>
+          </div>
+          <p class="help" id="apt-foot"></p>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <div class="tally-head">
+          <h2>Daily tally</h2>
+          <div class="tabs" role="tablist" id="tally-tabs">
+            <button type="button" role="tab" data-tab="types" aria-selected="true">Aircraft types</button>
+            <button type="button" role="tab" data-tab="airlines" aria-selected="false">Airlines</button>
+            <button type="button" role="tab" data-tab="categories" aria-selected="false">Kinds</button>
+          </div>
+        </div>
+        <p class="help">
+          How many of each came by, and at what time of day. <span class="new-badge">new</span> means not seen in the 30
+          days before.
+        </p>
+        <div class="tally-wrap"><table class="tally" id="tally"></table></div>
+      </section>
+
+      <section class="card">
+        <h2>Notable</h2>
+        <dl class="notable" id="notable"></dl>
+      </section>
+
+      <section class="card">
+        <h2>Last 30 days</h2>
+        <div class="chart" id="history"></div>
+      </section>
+
+      <section class="card">
+        <h2>Top routes</h2>
+        <ol class="bars" id="routes"></ol>
+      </section>
+
+      <section class="card">
+        <h2>Top airports <small class="muted">to or from</small></h2>
+        <ol class="bars" id="airports"></ol>
+      </section>
+
+      <section class="card span-2">
+        <div class="tally-head">
+          <h2>Flight log <small class="muted" id="log-count"></small></h2>
+          <input type="search" id="log-filter" placeholder="Filter: callsign, type, airline, airport…" />
+        </div>
+        <div class="tally-wrap"><table class="log" id="log"></table></div>
+      </section>
+    </main>
+
+    <div class="tooltip" id="tip" role="tooltip" hidden></div>
+
+    <script type="module" src="/js/traffic.js"></script>
+  </body>
+</html>

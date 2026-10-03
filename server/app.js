@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import { ConfigStore } from './config.js';
 import { Tracker } from './tracker.js';
+import { TrafficLog } from './traffic.js';
 import { Enricher } from './enrich/index.js';
 import { HttpSource, expandUrl } from './sources/http.js';
 import { SimulatorSource } from './sources/simulator.js';
@@ -19,6 +20,7 @@ export class App {
     this.getConfig = () => this.configStore.get();
     this.enricher = new Enricher({ dataDir, getConfig: this.getConfig, log, fetchImpl });
     this.tracker = new Tracker({ getConfig: this.getConfig, enricher: this.enricher });
+    this.traffic = new TrafficLog({ dataDir, getConfig: this.getConfig, log });
     this.clients = new Set();
     this.source = null;
     this.startedAt = Date.now();
@@ -29,6 +31,7 @@ export class App {
   async start({ loadDatabases = true } = {}) {
     await this.configStore.load();
     await this.enricher.init({ loadDatabases });
+    await this.traffic.start();
     this.#startSource();
     this.configStore.onChange((next, prev) => {
       if (JSON.stringify(next.source) !== JSON.stringify(prev.source)) this.#startSource();
@@ -43,6 +46,7 @@ export class App {
     clearInterval(this.broadcastTimer);
     clearInterval(this.keepAliveTimer);
     this.source?.stop();
+    await this.traffic.stop();
     for (const res of this.clients) res.end();
     this.clients.clear();
     await this.enricher.shutdown();
@@ -77,6 +81,8 @@ export class App {
 
   #startSource() {
     this.source?.stop();
+    // Don't carry planes over from the old source (simulated ones in particular).
+    this.tracker.clear();
     const cfg = this.getConfig().source;
     this.source = this.createSource(cfg, (data) => this.tracker.ingest(data));
     this.enricher.routes.override = this.source.lookupRoute ? (cs) => this.source.lookupRoute(cs) : null;
@@ -108,14 +114,20 @@ export class App {
   }
 
   #broadcastAircraft() {
-    if (!this.clients.size) {
-      // Keep enrichment warm even with no display connected.
-      this.tracker.snapshot();
-      return;
+    // Runs even with no display connected: keeps enrichment warm and the traffic log going.
+    const aircraft = this.tracker.snapshot();
+    // Simulated traffic stays out of the daily traffic log.
+    if (this.getConfig().source.type !== 'simulator') {
+      try {
+        this.traffic.observe(aircraft);
+      } catch (err) {
+        this.log.warn(`traffic: ${err.message}`);
+      }
     }
+    if (!this.clients.size) return;
     this.broadcast('aircraft', {
       serverTime: Date.now(),
-      aircraft: this.tracker.snapshot(),
+      aircraft,
       status: this.#briefStatus(),
     });
   }
@@ -141,6 +153,7 @@ export class App {
       source: this.source?.status() ?? null,
       tracker: { tracked: this.tracker.count, lastUpdate: this.tracker.lastUpdate },
       enrichment: this.enricher.status(),
+      traffic: this.traffic.status(),
       displays: this.clients.size,
     };
   }

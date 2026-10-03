@@ -79,7 +79,8 @@ skipped. Every few cards (default 5) the **map** is shown for a while. When noth
 map (or a clock) with the nearest traffic.
 
 - **Tap the right side** (or swipe left, or press →) for the next aircraft. **Tap the left side** (or ←) goes back.
-- **Tap a plane on the map** to bring up its card (it gets its route and photo looked up even if it's far away).
+- **Tap a plane on the map** for a pop-up with everything on its card and a small photo (its route and photo are looked
+  up even if it's far away). _Show full card_ switches to its card; the map stays up while the pop-up is open.
 - **Tap anywhere** to bring up controls: hold on this aircraft (space), show the map (M), full screen (F), settings.
 - **Spotlight** (off by default): when an aircraft is very close and low, probably the one you're staring at, the
   display stays on it instead of cycling. Leave it off or keep the radius small if you live under an approach path.
@@ -107,12 +108,18 @@ The **map** can also be rotated so that the way you face is up (`Map orientation
 
 ### Tablet tips
 
-- **Android:** [Fully Kiosk Browser](https://www.fully-kiosk.com/) keeps the screen on, starts on boot and locks the
-  tablet to the page. Or use Chrome → _Add to Home screen_: the app manifest opens it full-screen.
+- **Android:** [Fully Kiosk Browser](https://www.fully-kiosk.com/) works over plain `http://`. Set _Web Content
+  Settings → Start URL_ to `http://HOMELAB:8080/display`; for full screen turn off _Toolbars and Appearance → Show
+  Status Bar_ and _Show Navigation Bar_; and turn on _Device Management → Keep Screen On_ and _Launch on Boot_. These are
+  all free (locking the tablet to the page is a paid PLUS feature). Chrome only installs the display as a full-screen
+  app over **HTTPS**: over plain `http://`, _Add to Home screen_ just adds a bookmark that opens in a browser tab.
 - **iPad:** Safari → _Share → Add to Home Screen_ opens it full-screen. Set _Auto-Lock: Never_ and use _Guided
   Access_ to keep it on the page.
 - Browsers only allow the "keep screen awake" API on HTTPS, so over plain `http://` on your LAN rely on the tablet's own
-  stay-awake setting or a kiosk app. Putting flight-map behind your existing HTTPS reverse proxy also works.
+  stay-awake setting or a kiosk app. Putting flight-map behind your existing HTTPS reverse proxy also works, but put a
+  password in front of it: the display shows where you live, and `/admin` is open unless `ADMIN_PASSWORD` is set. Don't
+  rely on an IP allowlist alone: many routers make forwarded connections from the internet look like they come from
+  the router's own LAN address.
 - The display needs a reasonably modern browser (it uses CSS container queries: Chrome/Android WebView 105+,
   Safari/iPadOS 16+).
 
@@ -158,18 +165,34 @@ distance flown and remaining at the aircraft's speed (typical cruise speed for t
 are usually within about 15 minutes; take-off times are rougher. Exact times would need a paid flight-status API such
 as FlightAware AeroAPI.
 
+## Special aircraft
+
+Police, air ambulance, firefighting, search & rescue, military and government aircraft get a coloured badge on the card,
+the pop-up, the map and the traffic page. Many are recognised automatically from the aircraft database (its military flag
+and the operator's name). Add your own under **Settings → Special aircraft** by registration (`C-FSPS`), callsign or hex
+code (`STAR*` matches callsigns starting with STAR), and tick **Alert** to show a notice in the top corner of the display
+whenever that aircraft is in range. Emergency squawks (7500, 7600, 7700) always show a notice.
+
+## Your local airport
+
+Set **Settings → Daily traffic → Local airport** (code, position and elevation) and the traffic page shows where its
+departures go and where its arrivals come from, as shares of each day or the last 30 days. A flight counts when it's seen
+low near the airport (by default lower than 5,000 ft above it, within 30 km); its far end comes from its route. Flights
+that came low near the airport although their route doesn't use it, such as diversions, are listed separately.
+
 ## Map background
 
-CARTO's free basemaps now show "API key required" watermarks, and OpenStreetMap's volunteer-run tile servers block
-apps like this. Use a provider with a free key:
+OpenStreetMap's volunteer-run tile servers block apps like this, and CARTO now watermarks tiles requested without a
+key. Use a provider with a free key:
 
 1. **Stadia Maps** (recommended, free for non-commercial use): sign up at <https://client.stadiamaps.com/signup/>,
    create a _property_, and copy its API key.
 2. Or **MapTiler**: sign up at <https://cloud.maptiler.com/> and copy a key from _API keys_.
-3. In `/admin` → **Map overview** → _Background map_, choose the provider, paste the key into **Map API key**, and Save.
+3. Or **CARTO**: request a key at <https://carto.com/basemaps/apikey/> (no account needed; it arrives by email).
+4. In `/admin` → **Map overview** → _Background map_, choose the provider, paste the key into **Map API key**, and Save.
 
-The key travels with every map image the tablet downloads, so treat it as public (both providers let you restrict a
-key to your own domains). Without a key the map simply has no background. Without internet, choose _None_.
+The key travels with every map image the tablet downloads, so treat it as public (all three providers let you restrict
+a key to your own domains). Without a key the map simply has no background. Without internet, choose _None_.
 
 ## Configuration
 
@@ -193,7 +216,7 @@ Everything is editable in `/admin` and stored in `data/config.json`. Changes rea
 | `map.everyCards` / `map.seconds`       | 5 / 15                                                | 0 = never interleave the map                                                               |
 | `map.rangeKm`                          | 64.37 (40 mi)                                         | aircraft shown on the map                                                                  |
 | `map.orientation`                      | `north-up`                                            | or `facing-up`                                                                             |
-| `map.tiles` / `map.tileApiKey`         | `stadia` / empty                                      | `stadia` or `maptiler` (free key needed), `carto`, `osm`, `none` (offline), `custom`       |
+| `map.tiles` / `map.tileApiKey`         | `stadia` / empty                                      | `stadia`, `maptiler` or `carto` (free key needed), `osm`, `none` (offline), `custom`       |
 | `enrichment.photoMode`                 | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
 | `enrichment.routes` / `routeProviders` | on / adsb.im, adsbdb                                  |                                                                                            |
 

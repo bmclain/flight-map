@@ -9,6 +9,7 @@
     <meta name="theme-color" content="#0b1220" />
     <title>Overhead</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/css/fonts.css" />
@@ -35,10 +36,6 @@
             <img id="c-img-bg" class="bg" alt="" decoding="async" />
             <img id="c-img" alt="" decoding="async" />
             <figcaption id="c-credit"></figcaption>
-            <div class="minimap" id="c-minimap" aria-hidden="true">
-              <div class="mm-map" id="c-minimap-map"></div>
-              <div class="mm-attrib" id="c-minimap-attrib"></div>
-            </div>
           </figure>
 
           <section class="route" id="c-route">
@@ -100,6 +97,11 @@
             </div>
           </section>
 
+          <div class="minimap" id="c-minimap" aria-hidden="true">
+            <div class="mm-map" id="c-minimap-map"></div>
+            <div class="mm-attrib" id="c-minimap-attrib"></div>
+          </div>
+
           <dl class="stats">
             <div class="stat">
               <dt>Distance</dt>
@@ -129,6 +131,35 @@
         <div id="map-rotor"><div id="map"></div></div>
         <div class="map-title" id="map-title"></div>
         <div class="map-attrib" id="map-attrib"></div>
+        <aside class="ac-pop" id="pop" hidden aria-live="polite">
+          <button type="button" class="pop-close" data-pop="close" aria-label="Close">×</button>
+          <div class="pop-head">
+            <div class="pop-photo" id="pop-photo">
+              <div class="pop-sil" id="pop-sil"></div>
+              <img id="pop-img" alt="" decoding="async" />
+            </div>
+            <div class="pop-ident">
+              <div class="pop-maker" id="pop-maker"></div>
+              <div class="pop-model" id="pop-model"></div>
+              <div class="pop-flight" id="pop-flight"></div>
+              <div class="pop-badges" id="pop-badges"></div>
+            </div>
+          </div>
+          <div class="pop-route" id="pop-route"></div>
+          <div class="pop-where">
+            <svg viewBox="-50 -50 100 100" aria-hidden="true">
+              <circle class="ring" r="46" />
+              <line class="tick" x1="0" y1="-46" x2="0" y2="-38" />
+              <path id="pop-arrow" d="M0 -34 L13 -12 L4.5 -12 L4.5 28 L-4.5 28 L-4.5 -12 L-13 -12 Z" />
+            </svg>
+            <div>
+              <div class="pop-dir" id="pop-dir"></div>
+              <div class="pop-elev" id="pop-elev"></div>
+            </div>
+          </div>
+          <dl class="pop-stats" id="pop-stats"></dl>
+          <button type="button" class="pop-full" data-pop="full">Show full card</button>
+        </aside>
         <div class="map-compass" id="map-compass" aria-hidden="true">
           <svg viewBox="-20 -20 40 40">
             <path d="M0 -15 L5 2 L0 -2 L-5 2 Z" />
@@ -155,12 +186,15 @@
       <div class="progress"><div id="f-progress"></div></div>
     </footer>
 
+    <div id="alerts" aria-live="polite"></div>
+
     <nav id="controls" aria-label="Display controls">
       <button data-action="prev" title="Previous (←)">‹</button>
       <button data-action="pin" title="Hold on this aircraft (space)" id="pin-btn">❚❚</button>
       <button data-action="next" title="Next (→)">›</button>
       <button data-action="map" title="Map (M)">Map</button>
       <button data-action="fullscreen" title="Full screen (F)">⛶</button>
+      <a href="/traffic" title="Today's traffic">Today</a>
       <a href="/admin" title="Settings">⚙</a>
     </nav>
 

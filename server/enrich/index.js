@@ -4,6 +4,7 @@ import { AircraftDb, ensureDbFile, readJsonMaybeGzip } from './tar1090db.js';
 import { TypeDb } from './types.js';
 import { RouteResolver } from './routes.js';
 import { PhotoResolver } from './photos.js';
+import { classifySpecial } from '../special.js';
 
 const DB_REFRESH_MS = 24 * 3600_000;
 
@@ -136,11 +137,18 @@ export class Enricher {
     const { status: routeStatus, route } = this.routes.get(ac.callsign, ac, { lookup });
     const airline = route?.airline?.name ? route.airline : this.airline(ac.callsign);
     const photo = lookup ? this.photos.get({ hex: ac.hex, reg, typeInfo }) : null;
+    const military = ac.military || !!db?.military;
+    const special = classifySpecial(
+      { hex: ac.hex, reg, callsign: ac.callsign },
+      { ownOp: db?.ownOp, airlineName: airline?.name, military },
+      this.getConfig().special?.aircraft,
+    );
     return {
       reg,
       typeInfo,
       airline,
-      military: ac.military || !!db?.military,
+      military,
+      special,
       cargo: isCargoOperator(airline?.icao ?? /^([A-Z]{3})\d/.exec(ac.callsign ?? '')?.[1], airline?.name),
       route,
       routeStatus,

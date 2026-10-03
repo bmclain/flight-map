@@ -520,3 +520,35 @@ legend label.check {
 #save-msg.ok {
   color: var(--ok);
 }
+
+.top-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* special aircraft list */
+.sp-rows {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.sp-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(120px, 1fr) minmax(140px, 2fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.sp-row .check {
+  margin: 0;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .sp-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sp-row input[data-sp='name'] {
+    grid-column: 1 / -1;
+  }
+}

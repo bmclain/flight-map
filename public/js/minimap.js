@@ -100,7 +100,7 @@ export class MiniMap {
         this.map,
       );
     }
-    this.el.classList.toggle('osm-dark', !!spec?.invertForDark && theme === 'dark');
+    this.map.getPane('tilePane').style.filter = spec?.filter ?? '';
   }
 
   /** Faint ring at the card rotation range, for a sense of scale without tiles. */

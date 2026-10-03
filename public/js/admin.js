@@ -4,6 +4,7 @@ import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 import { compassPoint, compassWord, normalizeDeg } from '/shared/geo.js';
 import { distanceUnit, formatDistance, joinUnit, kmToUnit, unitToKm } from '/shared/units.js';
 import { tileSpec } from '/shared/tiles.js';
+import { SPECIAL_KINDS, SPECIAL_LABELS } from '/shared/special-kinds.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -69,6 +70,7 @@ function render() {
   }
   renderDial();
   renderLocation();
+  renderSpecial();
   updateSavebar();
 }
 
@@ -84,6 +86,54 @@ function onInput(e) {
 }
 document.addEventListener('input', onInput);
 document.addEventListener('change', onInput);
+
+// ---- special aircraft list -----------------------------------------------------------
+
+function renderSpecial() {
+  const box = $('#special-rows');
+  if (box.contains(document.activeElement) && document.activeElement.type !== 'button') return; // mid-edit
+  const list = draft.special.aircraft;
+  const kinds = (sel) =>
+    SPECIAL_KINDS.map(
+      (k) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(SPECIAL_LABELS[k])}</option>`,
+    ).join('');
+  box.innerHTML = list.length
+    ? list
+        .map(
+          (e, i) => `<div class="sp-row" data-i="${i}">
+      <input type="text" data-sp="match" value="${esc(e.match)}" placeholder="C-FSPS" maxlength="11" spellcheck="false" aria-label="Registration, callsign or hex" />
+      <select data-sp="kind" aria-label="Kind">${kinds(e.kind)}</select>
+      <input type="text" data-sp="name" value="${esc(e.name)}" placeholder="Name on screen" maxlength="60" aria-label="Name on screen" />
+      <label class="check"><input type="checkbox" data-sp="alert"${e.alert ? ' checked' : ''} /> Alert</label>
+      <button type="button" class="btn ghost" data-sp-remove aria-label="Remove">×</button>
+    </div>`,
+        )
+        .join('')
+    : '<p class="help">None added yet.</p>';
+}
+
+function onSpecialInput(e) {
+  const el = e.target.closest('[data-sp]');
+  if (!el) return;
+  const entry = draft.special.aircraft[Number(el.closest('.sp-row').dataset.i)];
+  entry[el.dataset.sp] = el.type === 'checkbox' ? el.checked : el.value;
+  updateSavebar();
+}
+$('#special-rows').addEventListener('input', onSpecialInput);
+$('#special-rows').addEventListener('change', onSpecialInput);
+$('#special-rows').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-sp-remove]')?.closest('.sp-row');
+  if (!row) return;
+  draft.special.aircraft.splice(Number(row.dataset.i), 1);
+  renderSpecial();
+  updateSavebar();
+});
+$('#special-add').addEventListener('click', () => {
+  draft.special.aircraft.push({ match: '', kind: 'police', name: '', alert: false });
+  renderSpecial();
+  updateSavebar();
+  $('#special-rows .sp-row:last-child input')?.focus();
+});
 
 // ---- save / revert --------------------------------------------------------------------
 

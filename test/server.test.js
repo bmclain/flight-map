@@ -8,7 +8,7 @@ import { App } from '../server/app.js';
 import { createHttpServer } from '../server/http.js';
 import { parseAircraftJson } from '../server/sources/parse.js';
 import { destinationPoint } from '../shared/geo.js';
-import { fakeFetch, quietLog, tmpDir } from './helpers.js';
+import { fakeFetch, quietLog, sleep, tmpDir, waitFor } from './helpers.js';
 
 // ---- config -------------------------------------------------------------------------
 
@@ -182,6 +182,10 @@ test('API: config, aircraft, status, static files', async (t) => {
 
 test('API: switching to a receiver URL and testing the connection', async (t) => {
   const { app, base } = await startServer(t);
+  // Simulated traffic is shown but never written to the daily traffic log.
+  await waitFor(() => app.tracker.snapshot().length > 1);
+  await sleep(1200);
+  assert.equal(app.traffic.status().today, 0);
   const test1 = await (
     await fetch(`${base}/api/source/test`, {
       method: 'POST',
@@ -207,6 +211,12 @@ test('API: switching to a receiver URL and testing the connection', async (t) =>
   assert.equal(app.source.type, 'aircraft-json');
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(app.status().source.positionCount, 1);
+  // The simulated planes are dropped straight away, and real ones are logged.
+  assert.deepEqual(
+    app.tracker.snapshot().map((a) => a.hex),
+    ['a00001'],
+  );
+  await waitFor(() => app.traffic.status().today === 1, { timeoutMs: 3000 });
 });
 
 test('API: admin password protects changes', async (t) => {

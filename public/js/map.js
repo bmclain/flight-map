@@ -6,7 +6,9 @@ import { destinationPoint } from '/shared/geo.js';
 import { formatDistance, joinUnit } from '/shared/units.js';
 import { silhouettePaths } from './icons.js';
 import { tileSpec } from '/shared/tiles.js';
+import { SPECIAL_LABELS } from '/shared/special-kinds.js';
 
+const specialKind = (ac) => ac.special?.kind ?? (ac.military ? 'military' : null);
 
 const esc = (s) =>
   String(s ?? '').replace(
@@ -76,9 +78,8 @@ export class MapView {
         this.map,
       );
     }
-    this.el.classList.toggle('osm-dark', !!spec?.invertForDark && theme === 'dark');
+    this.map.getPane('tilePane').style.filter = spec?.filter ?? '';
   }
-
 
   #drawOverlay() {
     const { receiver, display, map, units } = this.settings;
@@ -217,6 +218,7 @@ export class MapView {
       }
       const el = m.getElement();
       if (el) {
+        el.dataset.special = specialKind(ac) ?? '';
         el.classList.toggle('current', isCurrent);
         el.classList.toggle('in-cycle', inCycle);
         el.querySelector('.glyph').style.transform = `rotate(${ac.trackDeg ?? 0}deg)`;
@@ -236,7 +238,9 @@ export class MapView {
 
   #label(ac, isCurrent) {
     const model = ac.typeInfo?.model || ac.typeInfo?.code || '';
+    const kind = specialKind(ac);
     const parts = isCurrent ? [model, ac.callsign] : [model || ac.callsign];
+    if (kind) parts.unshift(SPECIAL_LABELS[kind]);
     return esc(parts.filter(Boolean).join(' · '));
   }
 

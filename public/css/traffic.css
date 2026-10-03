@@ -1,0 +1,436 @@
+/* Daily traffic page. Builds on admin.css (tokens, cards, buttons). */
+:root {
+  --on-accent: #ffffff;
+  --grid: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --on-accent: #1a1206;
+  }
+}
+
+/* ---- day header ---------------------------------------------------------- */
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.day-nav h2 {
+  margin: 0;
+  font:
+    700 26px 'Barlow Condensed',
+    system-ui,
+    sans-serif;
+}
+.day-nav input[type='date'] {
+  margin-top: 2px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.day-nav .btn {
+  min-width: 44px;
+}
+.sentence {
+  margin: 14px 0 0;
+  font-size: 16px;
+  max-width: 80ch;
+}
+.sentence:empty {
+  display: none;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.tile {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.tile .v {
+  font:
+    700 32px/1.1 'Barlow Condensed',
+    system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.tile .k {
+  color: var(--muted);
+  font-size: 13px;
+}
+.tile .d {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ---- bar charts (single series, accent hue) ----------------------------- */
+.chart {
+  position: relative;
+  min-height: 180px;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 200px;
+  overflow: visible;
+}
+.chart .bar {
+  fill: var(--accent);
+}
+.chart .bar.dim {
+  fill: color-mix(in srgb, var(--accent) 35%, var(--card));
+}
+.chart .hit {
+  fill: transparent;
+  cursor: default;
+}
+.chart .hit.link {
+  cursor: pointer;
+}
+.chart .hit:hover + .bar,
+.chart .col:hover .bar {
+  filter: brightness(1.12);
+}
+.chart .axis text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.chart .gridline {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+.chart .baseline {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart .empty {
+  fill: var(--muted);
+  font-size: 13px;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 1.35;
+  padding: 6px 9px;
+  border-radius: 6px;
+  max-width: 260px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.2);
+}
+.tooltip strong {
+  font-size: 13px;
+}
+
+/* ---- tally (types × hour heat grid) -------------------------------------- */
+.tally-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.tally-head h2 {
+  margin: 0;
+}
+.tabs {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.tabs button {
+  font: inherit;
+  font-size: 13px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tabs button[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.tally-wrap {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+table.tally,
+table.log {
+  border-collapse: separate;
+  border-spacing: 2px;
+  width: 100%;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.tally th,
+.log th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11px;
+  text-align: left;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.tally th.h {
+  text-align: center;
+  min-width: 26px;
+}
+.tally td {
+  padding: 0;
+}
+.tally td.name {
+  padding: 4px 8px 4px 4px;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tally td.name small {
+  color: var(--muted);
+  margin-left: 6px;
+}
+.tally td.total {
+  text-align: right;
+  font-weight: 600;
+  padding: 4px 10px 4px 4px;
+}
+.tally td.c {
+  height: 26px;
+  min-width: 26px;
+  text-align: center;
+  border-radius: 4px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--muted) 7%, transparent);
+  color: var(--text);
+}
+.tally td.c[data-l='1'] {
+  background: color-mix(in srgb, var(--accent) 22%, var(--card));
+}
+.tally td.c[data-l='2'] {
+  background: color-mix(in srgb, var(--accent) 45%, var(--card));
+}
+.tally td.c[data-l='3'] {
+  background: color-mix(in srgb, var(--accent) 72%, var(--card));
+  color: var(--on-accent);
+}
+.tally td.c[data-l='4'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.tally tr:hover td.name {
+  color: var(--accent);
+}
+.tally .more td {
+  padding-top: 8px;
+}
+.new-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  vertical-align: 1px;
+}
+.tally .new-badge {
+  margin-left: 6px;
+}
+
+/* ---- ranked lists ---------------------------------------------------------- */
+ol.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ol.bars li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+ol.bars li .n {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+ol.bars li .sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 4px;
+}
+ol.bars li .track {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  overflow: hidden;
+}
+ol.bars li .track span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.empty-note {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---- local airport ----------------------------------------------------------- */
+#apt-card.off .apt-body,
+#apt-card.off .tabs {
+  display: none;
+}
+#apt-card h3 {
+  margin: 14px 0 4px;
+  font-size: 15px;
+}
+.apt-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0 32px;
+}
+ol.bars li .n .sub {
+  font-weight: 400;
+}
+ul.apt-unusual {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+ul.apt-unusual li {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+ul.apt-unusual li:first-child {
+  border-top: 0;
+}
+ul.apt-unusual small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+#apt-foot:empty {
+  display: none;
+}
+
+/* ---- notable --------------------------------------------------------------- */
+dl.notable {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0;
+  font-size: 14px;
+}
+dl.notable dt {
+  color: var(--muted);
+  white-space: nowrap;
+}
+dl.notable dd {
+  margin: 0;
+}
+dl.notable dd small {
+  color: var(--muted);
+  display: block;
+}
+
+/* ---- flight log ------------------------------------------------------------ */
+#log-filter {
+  min-width: 260px;
+  flex: 0 1 360px;
+}
+.log td {
+  padding: 5px 4px;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+.log td.num {
+  text-align: right;
+}
+.log th.num {
+  text-align: right;
+}
+.log td .muted {
+  font-size: 12px;
+}
+.log .flag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+.log .flag.alert {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+/* Special aircraft (police, air ambulance, …): one colour per kind. */
+.flag[class*='sp-'] {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 0 4px;
+  color: #fff;
+  border: 0;
+  background: #1a9fb8;
+}
+.flag.sp-police {
+  background: #2f6df0;
+}
+.flag.sp-ambulance {
+  background: #e03c3c;
+}
+.flag.sp-firefighting {
+  background: #e5651a;
+}
+.flag.sp-rescue {
+  background: #e8b70c;
+  color: #1a1400;
+}
+.flag.sp-military {
+  background: #5f8a22;
+}
+.flag.sp-government {
+  background: #7e55e0;
+}
+.log-more {
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .tile .v {
+    font-size: 26px;
+  }
+  #log-filter {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}

@@ -8,6 +8,7 @@ import { elevationText, relativeDirectionText, verticalTrend } from '/shared/dir
 import { formatAltitude, formatDistance, formatSpeed, joinUnit } from '/shared/units.js';
 import { isDaylight } from '/shared/sun.js';
 import { estimateFlightTimes, formatDuration } from '/shared/flighttimes.js';
+import { EMERGENCY_SQUAWKS, SPECIAL_LABELS } from '/shared/special-kinds.js';
 import { silhouettePaths, silhouetteSvg } from './icons.js';
 import { LiveData } from './stream.js';
 import { MapView } from './map.js';
@@ -57,7 +58,7 @@ const mapView = new MapView({
   title: $('map-title'),
   compass: $('map-compass'),
   attribution: $('map-attrib'),
-  onSelect: (hex) => act('show', hex),
+  onSelect: (hex) => openPopup(hex),
 });
 
 const miniMap = new MiniMap({ wrap: $('c-minimap'), el: $('c-minimap-map'), attribution: $('c-minimap-attrib') });
@@ -133,41 +134,131 @@ function applyTheme() {
 function configureMap() {
   if (!eff) return;
   mapView.configure({ ...eff, units: unitsName(), theme });
+  const miniMapOn = eff.map.miniMap !== false;
+  $('card').classList.toggle('with-mini', miniMapOn);
   miniMap.configure({
     receiver: eff.receiver,
     display: eff.display,
     map: eff.map,
     theme,
-    enabled: eff.map.miniMap !== false,
+    enabled: miniMapOn,
   });
+}
+
+// ---- what the card (and the map pop-up) says -----------------------------------------------
+
+/** Badges for an aircraft; `ctx` adds the carousel ones (holding, close by). */
+function badgesHtml(ac, ctx = null) {
+  const badges = [];
+  if (ctx && cycler.pinned === ac.hex) badges.push('<span class="badge hot">Holding</span>');
+  else if (ctx?.spotlight.some((a) => a.hex === ac.hex)) badges.push('<span class="badge hot">Close by</span>');
+  if (isEmergency(ac)) badges.push('<span class="badge danger">Emergency</span>');
+  const kind = specialKind(ac);
+  if (kind) badges.push(`<span class="badge sp sp-${kind}">${esc(SPECIAL_LABELS[kind])}</span>`);
+  return badges.join('');
+}
+
+const isEmergency = (ac) => !!ac.emergency || ac.squawk in EMERGENCY_SQUAWKS;
+const specialKind = (ac) => ac.special?.kind ?? (ac.military ? 'military' : null);
+
+function cardIdent(ac) {
+  const t = ac.typeInfo;
+  let airline = ac.airline?.name || ac.special?.name || '';
+  if (!airline && ac.military) airline = 'Military';
+  const ident = [ac.route?.flightIata || ac.callsign, ac.reg && ac.reg !== ac.callsign ? ac.reg : null];
+  return {
+    maker: t?.manufacturer || (t ? '' : 'Unidentified aircraft'),
+    model: t?.model || t?.code || ac.callsign || ac.hex.toUpperCase(),
+    airline,
+    flight: ident.filter(Boolean).join(' · '),
+  };
+}
+
+function airportParts(ap) {
+  return {
+    city: ap.city || ap.name || ap.iata || ap.icao || '?',
+    code: ap.iata || ap.icao || '',
+  };
+}
+
+/** { from, to, takeoff, landing, duration } or { none: why there's no route }. */
+function cardRoute(ac) {
+  const r = ac.route;
+  if (r?.origin && r?.destination) {
+    const times = estimateFlightTimes(r, ac);
+    // Kept on one line ("5:10 PM", not "5:10" / "PM") when a narrow panel wraps.
+    const clock = (t) =>
+      new Date(t)
+        .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: !eff.display.clock24h })
+        .replace(/\s/g, '\u00a0');
+    const past = (t) => t <= Date.now();
+    return {
+      from: airportParts(r.origin),
+      to: airportParts(r.destination),
+      takeoff: times ? `Took off ≈\u00a0${clock(times.takeoff)}` : '',
+      landing: times ? (past(times.landing) ? 'Landing now' : `Lands ≈\u00a0${clock(times.landing)}`) : '',
+      duration: times ? `≈ ${formatDuration(times.durationMin)}` : '',
+    };
+  }
+  let none = 'Route unknown';
+  if (ac.routeStatus === 'pending') none = 'Looking up route…';
+  else if (isRegistrationCallsign(ac)) none = 'Private flight · no published route';
+  else if (ac.military) none = 'Military flight · no published route';
+  else if (!ac.callsign) none = 'No flight number broadcast';
+  return { none };
+}
+
+/** Where to look: relative bearing, elevation angle and the words for both. */
+function cardWhere(ac) {
+  const rel = relativeBearing(ac.bearingDeg, eff.display.facingDeg);
+  const el = ac.elevationDeg;
+  if (ac.onGround) return { rel, el, dir: relativeDirectionText(rel), elev: 'On the ground' };
+  if (el != null && el >= 75) return { rel, el, dir: 'Right overhead', elev: `Look straight up · ${Math.round(el)}°` };
+  const elev = el == null ? '' : `${elevationText(el)} · ${Math.max(0, Math.round(el))}°`;
+  return { rel, el, dir: relativeDirectionText(rel), elev };
+}
+
+/** Stat values as HTML; `seats` is plain text. */
+function cardStats(ac) {
+  const units = unitsName();
+  let alt = 'Ground';
+  if (!ac.onGround) {
+    const trend = verticalTrend(ac.vertRateFpm);
+    const glyph =
+      trend === 'climbing'
+        ? '<span class="trend" title="climbing">▲</span>'
+        : trend === 'descending'
+          ? '<span class="trend" title="descending">▼</span>'
+          : '';
+    alt = valueHtml(formatAltitude(ac.altFt ?? ac.altGeomFt, units), glyph);
+  }
+  const seats = ac.typeInfo?.seats;
+  return {
+    dist: valueHtml(formatDistance(ac.distanceKm, units)),
+    alt,
+    speed: valueHtml(formatSpeed(ac.gsKt, units)),
+    heading:
+      ac.trackDeg == null
+        ? '—'
+        : `${esc(compassPoint(ac.trackDeg, 8))}<span class="u">${String(Math.round(ac.trackDeg) % 360).padStart(3, '0')}°</span>`,
+    seatsLabel: ac.cargo ? 'Carries' : 'Seats',
+    seats: ac.cargo ? 'Cargo' : seats ? (seats >= 20 ? `~${seats}` : String(seats)) : '—',
+  };
 }
 
 // ---- card ----------------------------------------------------------------------------
 
 function renderCard(ac, ctx) {
-  const t = ac.typeInfo;
-  $('c-maker').textContent = t?.manufacturer || (t ? '' : 'Unidentified aircraft');
+  const id = cardIdent(ac);
+  $('c-maker').textContent = id.maker;
   const model = $('c-model');
-  const modelText = t?.model || t?.code || ac.callsign || ac.hex.toUpperCase();
-  if (model.textContent !== modelText) {
-    model.textContent = modelText;
+  if (model.textContent !== id.model) {
+    model.textContent = id.model;
     fitText(model);
   }
-
-  // airline / operator line
-  let airline = ac.airline?.name || '';
-  if (!airline && ac.military) airline = 'Military';
-  $('c-airline').textContent = airline;
-  const ident = [ac.route?.flightIata || ac.callsign, ac.reg && ac.reg !== ac.callsign ? ac.reg : null];
-  $('c-flight').textContent = ident.filter(Boolean).join(' · ');
-
-  const badges = [];
-  if (cycler.pinned === ac.hex) badges.push('<span class="badge hot">Holding</span>');
-  else if (ctx.spotlight.some((a) => a.hex === ac.hex)) badges.push('<span class="badge hot">Close by</span>');
-  if (ac.emergency || ['7500', '7600', '7700'].includes(ac.squawk))
-    badges.push('<span class="badge danger">Emergency</span>');
-  if (ac.military) badges.push('<span class="badge">Military</span>');
-  $('c-badges').innerHTML = badges.join('');
+  $('c-airline').textContent = id.airline;
+  $('c-flight').textContent = id.flight;
+  $('c-badges').innerHTML = badgesHtml(ac, ctx);
 
   renderPhoto(ac);
   renderRoute(ac);
@@ -205,50 +296,28 @@ function renderPhoto(ac) {
   }
 }
 
-function airportParts(ap) {
-  return {
-    city: ap.city || ap.name || ap.iata || ap.icao || '?',
-    code: ap.iata || ap.icao || '',
-  };
-}
-
 function renderRoute(ac) {
   const box = $('c-route');
-  const r = ac.route;
-  if (r?.origin && r?.destination) {
-    box.classList.remove('empty');
-    const from = airportParts(r.origin);
-    const to = airportParts(r.destination);
-    setFitted($('c-from-city'), from.city);
-    $('c-from-code').textContent = from.code;
-    setFitted($('c-to-city'), to.city);
-    $('c-to-code').textContent = to.code;
-    const times = estimateFlightTimes(r, ac);
-    const clock = (t) =>
-      new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: !eff.display.clock24h });
-    const past = (t) => t <= Date.now();
-    $('c-takeoff').textContent = times ? `Took off ≈ ${clock(times.takeoff)}` : '';
-    $('c-landing').textContent = times ? `${past(times.landing) ? 'Landing now' : `Lands ≈ ${clock(times.landing)}`}` : '';
-    $('c-duration').textContent = times ? `≈ ${formatDuration(times.durationMin)}` : '';
+  const r = cardRoute(ac);
+  box.classList.toggle('empty', !!r.none);
+  if (r.none) {
+    $('c-route-none').textContent = r.none;
     return;
   }
-  box.classList.add('empty');
-  let msg = 'Route unknown';
-  if (ac.routeStatus === 'pending') msg = 'Looking up route…';
-  else if (isRegistrationCallsign(ac)) msg = 'Private flight · no published route';
-  else if (ac.military) msg = 'Military flight · no published route';
-  else if (!ac.callsign) msg = 'No flight number broadcast';
-  $('c-route-none').textContent = msg;
+  setFitted($('c-from-city'), r.from.city);
+  $('c-from-code').textContent = r.from.code;
+  setFitted($('c-to-city'), r.to.city);
+  $('c-to-code').textContent = r.to.code;
+  $('c-takeoff').textContent = r.takeoff;
+  $('c-landing').textContent = r.landing;
+  $('c-duration').textContent = r.duration;
 }
 
 /** Values that change every second. */
 function renderLive(ac) {
-  const units = unitsName();
-  const facing = eff.display.facingDeg;
-
   // where to look
-  const rel = relativeBearing(ac.bearingDeg, facing);
-  const angle = lastArrowAngle + ((((rel - lastArrowAngle) % 360) + 540) % 360) - 180;
+  const w = cardWhere(ac);
+  const angle = lastArrowAngle + ((((w.rel - lastArrowAngle) % 360) + 540) % 360) - 180;
   lastArrowAngle = angle;
   $('c-arrow').style.transform = `rotate(${angle}deg)`;
   const planeRot = (ac.trackDeg ?? ac.bearingDeg) - ac.bearingDeg;
@@ -256,19 +325,9 @@ function renderLive(ac) {
     `<g transform="translate(0 -38) rotate(${planeRot.toFixed(1)}) translate(-8 -8) scale(0.25)">${silhouettePaths(
       ac.typeInfo?.category ?? 'narrowbody',
     )}</g>`;
-
-  const el = ac.elevationDeg;
-  if (ac.onGround) {
-    $('c-dir').textContent = relativeDirectionText(rel);
-    $('c-elev').textContent = 'On the ground';
-  } else if (el != null && el >= 75) {
-    $('c-dir').textContent = 'Right overhead';
-    $('c-elev').textContent = `Look straight up · ${Math.round(el)}°`;
-  } else {
-    $('c-dir').textContent = relativeDirectionText(rel);
-    $('c-elev').textContent = el == null ? '' : `${elevationText(el)} · ${Math.max(0, Math.round(el))}°`;
-  }
-  const e = Math.max(0, Math.min(90, el ?? 0)) * (Math.PI / 180);
+  $('c-dir').textContent = w.dir;
+  $('c-elev').textContent = w.elev;
+  const e = Math.max(0, Math.min(90, w.el ?? 0)) * (Math.PI / 180);
   const x = 4 + 32 * Math.cos(e);
   const y = 36 - 32 * Math.sin(e);
   $('c-elev-ray').setAttribute('x2', x.toFixed(1));
@@ -277,27 +336,13 @@ function renderLive(ac) {
   $('c-elev-dot').setAttribute('cy', y.toFixed(1));
 
   // stats
-  $('c-dist').innerHTML = valueHtml(formatDistance(ac.distanceKm, units));
-  if (ac.onGround) {
-    $('c-alt').innerHTML = 'Ground';
-  } else {
-    const trend = verticalTrend(ac.vertRateFpm);
-    const glyph =
-      trend === 'climbing'
-        ? '<span class="trend" title="climbing">▲</span>'
-        : trend === 'descending'
-          ? '<span class="trend" title="descending">▼</span>'
-          : '';
-    $('c-alt').innerHTML = valueHtml(formatAltitude(ac.altFt ?? ac.altGeomFt, units), glyph);
-  }
-  $('c-speed').innerHTML = valueHtml(formatSpeed(ac.gsKt, units));
-  $('c-heading').innerHTML =
-    ac.trackDeg == null
-      ? '—'
-      : `${esc(compassPoint(ac.trackDeg, 8))}<span class="u">${String(Math.round(ac.trackDeg) % 360).padStart(3, '0')}°</span>`;
-  const seats = ac.typeInfo?.seats;
-  $('c-seats-label').textContent = ac.cargo ? 'Carries' : 'Seats';
-  $('c-seats').innerHTML = ac.cargo ? 'Cargo' : seats ? (seats >= 20 ? `~${seats}` : String(seats)) : '—';
+  const st = cardStats(ac);
+  $('c-dist').innerHTML = st.dist;
+  $('c-alt').innerHTML = st.alt;
+  $('c-speed').innerHTML = st.speed;
+  $('c-heading').innerHTML = st.heading;
+  $('c-seats-label').textContent = st.seatsLabel;
+  $('c-seats').textContent = st.seats;
 }
 
 function showCard(hex, ctx) {
@@ -363,6 +408,115 @@ function updateMapTitle(ctx, kind) {
   mapView.setTitle(html);
 }
 
+// ---- map pop-up ----------------------------------------------------------------------
+// Tapping a plane on the map shows a compact version of its card over the map;
+// "Show full card" switches to the carousel card for it. While it's open the
+// map stays up; it closes after a minute untouched.
+
+const POP_IDLE_MS = 60_000;
+const ROUTE_PLANE =
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><path transform="rotate(90 32 32)" d="M32 3c2 0 3 3 3 7v15l25 13v3l-25-6v15l8 6v3l-8-1.5-1.5 3.5h-3l-1.5-3.5-8 1.5v-3l8-6V35L4 41v-3l25-13V10c0-4 1-7 3-7z"/></svg>';
+let popHex = null;
+let popUntil = 0;
+let popArrowAngle = 0;
+
+function openPopup(hex) {
+  if (!live.byHex.has(hex)) return;
+  if (hex !== popHex) popArrowAngle = cardWhere(live.byHex.get(hex)).rel;
+  popHex = hex;
+  popUntil = Date.now() + POP_IDLE_MS;
+  $('pop').hidden = false;
+  // Far-away aircraft aren't looked up by default; ask for its route and photo.
+  fetch(`/api/aircraft/${hex}/lookup`, { method: 'POST' }).catch(() => {});
+  renderPopup();
+  onAircraft();
+}
+
+function closePopup() {
+  if (!popHex) return;
+  popHex = null;
+  $('pop').hidden = true;
+  onAircraft();
+}
+
+function renderPopup() {
+  const ac = live.byHex.get(popHex);
+  if (!ac) return closePopup();
+  const id = cardIdent(ac);
+  $('pop-maker').textContent = id.maker;
+  $('pop-model').textContent = id.model;
+  $('pop-flight').textContent = [id.airline, id.flight].filter(Boolean).join(' · ');
+  $('pop-badges').innerHTML = badgesHtml(ac);
+
+  const fig = $('pop-photo');
+  const img = $('pop-img');
+  const url = ac.photo?.url ?? '';
+  if (img.dataset.src !== url) {
+    img.dataset.src = url;
+    fig.classList.remove('has-photo');
+    if (url) {
+      img.onload = () => img.dataset.src === url && fig.classList.add('has-photo');
+      img.src = url;
+    } else img.removeAttribute('src');
+  }
+  const category = ac.typeInfo?.category ?? 'narrowbody';
+  if ($('pop-sil').dataset.key !== category) {
+    $('pop-sil').dataset.key = category;
+    $('pop-sil').innerHTML = silhouetteSvg(category);
+  }
+
+  const r = cardRoute(ac);
+  const end = (ap, time, cls) =>
+    `<div class="ap ${cls}"><b>${esc(ap.code || ap.city)}</b><span>${esc(ap.code ? ap.city : '')}</span><small>${esc(time)}</small></div>`;
+  $('pop-route').innerHTML = r.none
+    ? `<div class="none">${esc(r.none)}</div>`
+    : `${end(r.from, r.takeoff, 'from')}<div class="mid">${ROUTE_PLANE}<small>${esc(r.duration)}</small></div>${end(r.to, r.landing, 'to')}`;
+
+  const w = cardWhere(ac);
+  popArrowAngle += ((((w.rel - popArrowAngle) % 360) + 540) % 360) - 180;
+  $('pop-arrow').style.transform = `rotate(${popArrowAngle}deg)`;
+  $('pop-dir').textContent = w.dir;
+  $('pop-elev').textContent = w.elev;
+
+  placePopup();
+
+  const st = cardStats(ac);
+  $('pop-stats').innerHTML = [
+    ['Distance', st.dist],
+    ['Altitude', st.alt],
+    ['Speed', st.speed],
+    ['Heading', st.heading],
+    [st.seatsLabel, esc(st.seats)],
+  ]
+    .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`)
+    .join('');
+}
+
+/** Dock the pop-up in the bottom corner (left or right) that doesn't cover its plane. */
+function placePopup() {
+  const pop = $('pop');
+  const marker = mapView.markers.get(popHex)?.getElement?.();
+  if (!marker) return;
+  const m = marker.getBoundingClientRect();
+  const p = pop.getBoundingClientRect();
+  const wrap = $('map-wrap').getBoundingClientRect();
+  const covers = (left, right) => m.right > left && m.left < right && m.bottom > p.top && m.top < p.bottom;
+  // The same box mirrored to the other side of the map.
+  const altLeft = wrap.left + wrap.right - p.right;
+  if (covers(p.left, p.right) && !covers(altLeft, altLeft + p.width)) pop.classList.toggle('right');
+}
+
+$('pop').addEventListener('click', (e) => {
+  popUntil = Date.now() + POP_IDLE_MS;
+  const action = e.target.closest('[data-pop]')?.dataset.pop;
+  if (action === 'close') closePopup();
+  if (action === 'full') {
+    const hex = popHex;
+    closePopup();
+    act('show', hex);
+  }
+});
+
 // ---- main loop -----------------------------------------------------------------------
 
 function setView(kind) {
@@ -376,6 +530,8 @@ function tick() {
   }
   const now = Date.now();
   const ctx = poolCtx(now);
+  // Keep the map up while a pop-up is open on it.
+  if (popHex && cycler.view?.kind === 'map') cycler.view.end = Math.max(cycler.view.end, now + 1500);
   const view = cycler.update(now, ctx);
 
   let kind = view.kind;
@@ -393,6 +549,8 @@ function tick() {
     mapView.setFitRange(null);
   }
 
+  const mapShown = kind === 'map' || kind === 'idle-map' || eff.display.layout === 'split';
+  if (popHex && (!mapShown || now > popUntil || !live.byHex.has(popHex))) closePopup();
   if (kind === 'card') showCard(view.hex, ctx);
   if (kind === 'idle') renderIdle();
   if (kind === 'map' || kind === 'idle-map' || eff.display.layout === 'split') updateMapTitle(ctx, kind);
@@ -427,8 +585,33 @@ function updateStatus() {
   $('f-status-text').textContent = text;
 }
 
+// ---- alerts: special aircraft you asked to hear about, and emergencies -------------------
+
+let alertsHtml = '';
+function renderAlerts() {
+  const items = live.aircraft.filter((a) => a.special?.alert || isEmergency(a)).slice(0, 3);
+  const html = items
+    .map((a) => {
+      const emergency = isEmergency(a);
+      const kind = emergency ? 'emergency' : a.special.kind;
+      const what = emergency
+        ? `${a.squawk in EMERGENCY_SQUAWKS ? `Squawking ${a.squawk} (${EMERGENCY_SQUAWKS[a.squawk]})` : 'Emergency'} · ${a.callsign || a.reg || a.hex.toUpperCase()}`
+        : `${a.special.name || SPECIAL_LABELS[kind]} is up`;
+      const where = `${joinUnit(formatDistance(a.distanceKm, unitsName()))} ${compassPoint(a.bearingDeg, 8)}`;
+      return `<button type="button" class="alert sp-${kind}" data-hex="${esc(a.hex)}"><span class="dot"></span><b>${esc(what)}</b><span class="al-where">${esc(where)}</span></button>`;
+    })
+    .join('');
+  if (html !== alertsHtml) $('alerts').innerHTML = alertsHtml = html;
+}
+
+$('alerts').addEventListener('click', (e) => {
+  const hex = e.target.closest('[data-hex]')?.dataset.hex;
+  if (hex) act('show', hex);
+});
+
 function onAircraft() {
   if (!eff) return;
+  renderAlerts();
   const ctx = poolCtx();
   for (const ac of ctx.pool) preload(ac.photo?.url);
   const view = cycler.view;
@@ -436,8 +619,9 @@ function onAircraft() {
     const ac = live.byHex.get(shownHex);
     if (ac) renderCard(ac, ctx);
   }
+  if (popHex) renderPopup();
   mapView.update(live.aircraft, {
-    currentHex: view?.kind === 'card' ? view.hex : null,
+    currentHex: popHex ?? (view?.kind === 'card' ? view.hex : null),
     cycleHexes: new Set(ctx.pool.map((a) => a.hex)),
     trails: live.trails,
   });
@@ -520,9 +704,19 @@ $('stage').addEventListener('pointerdown', (e) => {
 });
 $('stage').addEventListener('pointerup', (e) => {
   if (!down) return;
+  if (e.target.closest?.('#pop')) {
+    down = null;
+    return;
+  }
   // Taps on a plane in the map are handled by the map (shows that plane). In the
   // split layout taps elsewhere on the map do nothing, so they can't skip cards.
   const onMap = e.target.closest?.('#map-wrap');
+  // With a pop-up open, a tap elsewhere on the map just closes it.
+  if (onMap && popHex && !e.target.closest('.ac-marker')) {
+    down = null;
+    closePopup();
+    return;
+  }
   if (onMap && (e.target.closest('.ac-marker') || eff?.display.layout === 'split')) {
     down = null;
     flashControls();
@@ -551,6 +745,10 @@ window.addEventListener('keydown', (e) => {
     f: 'fullscreen',
     F: 'fullscreen',
   };
+  if (e.key === 'Escape' && popHex) {
+    closePopup();
+    return;
+  }
   if (map[e.key]) {
     e.preventDefault();
     act(map[e.key]);

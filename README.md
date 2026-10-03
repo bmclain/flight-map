@@ -103,8 +103,10 @@ Pi screen face different ways:
   aircraft, so a light plane is clearly smaller than an airliner.
 - Its path covers the last `map.trailMinutes`, thinning towards the old end. The server keeps every plane's track since
   it was first heard (and across restarts), so paths are there as soon as a screen opens.
-- The selected plane (on the card, or tapped) gets an outline, and its path is coloured by altitude, orange near the
-  ground through yellow, green and blue to purple at 40,000 ft and up, with a key in the corner.
+- The plane on the card gets a thin outline in its colour and its path a soft glow.
+- **Tap a plane** and the map zooms out to its whole flight since take-off (from adsb.lol), coloured by altitude: orange
+  near the ground through yellow, green and blue to purple at 40,000 ft and up, with a key under the compass. Closing the
+  pop-up zooms back in.
 - Labels show the flight number and model, then the airline (or private, police, air ambulance…), altitude and speed.
 - The summary in the corner counts the planes per airline, then police, air ambulance, government, military and private.
 

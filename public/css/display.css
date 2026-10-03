@@ -761,7 +761,7 @@ body[data-theme='light'] .leaflet-tile-pane {
   pointer-events: none;
 }
 
-/* Bottom-left of the map: the altitude key (when a plane is selected) above the summary. */
+/* Bottom-left of the map: the summary. */
 .map-keys {
   position: absolute;
   left: 2.4vmin;
@@ -808,9 +808,14 @@ body[data-theme='light'] .leaflet-tile-pane {
   font-weight: 600;
   color: var(--muted);
 }
-/* Key to the altitude colours of the selected plane's path. */
+/* Key to the altitude colours of a tapped plane's flight: top right, under the
+   compass, clear of the pop-up and the summary. */
 .map-altitude {
-  width: min(34vmin, 100%);
+  position: absolute;
+  top: 10.6vmin;
+  right: 2.4vmin;
+  z-index: 500;
+  width: min(34vmin, 45%);
   padding: 0.8vmin 1.4vmin 0.6vmin;
   border-radius: 1.2vmin;
   background: color-mix(in srgb, var(--panel) 88%, transparent);

@@ -1,7 +1,7 @@
 {
   "id": "/display",
-  "name": "Overhead",
-  "short_name": "Overhead",
+  "name": "Look Up",
+  "short_name": "Look Up",
   "description": "What plane is that? Live display of nearby aircraft.",
   "start_url": "/display",
   "scope": "/",

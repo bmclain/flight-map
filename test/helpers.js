@@ -5,7 +5,7 @@ import path from 'node:path';
 export const quietLog = { info() {}, warn() {}, error() {} };
 
 export async function tmpDir() {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'flight-map-test-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'look-up-test-'));
 }
 
 /**

@@ -2,13 +2,13 @@
 
 This guide covers two jobs for the Pi:
 
-1. **Receiver.** Turn the AirNav FlightStick's raw signal into an `aircraft.json` that flight-map can poll.
+1. **Receiver.** Turn the AirNav FlightStick's raw signal into an `aircraft.json` that Look Up can poll.
 2. **Display (later).** Run the display full-screen on a screen attached to the Pi.
 
-flight-map itself runs on your homelab server, not on the Pi. The Pi only has to decode ADS-B and serve one JSON file.
+Look Up itself runs on your homelab server, not on the Pi. The Pi only has to decode ADS-B and serve one JSON file.
 
 ```
-FlightStick ──USB──▶ Raspberry Pi 4 (readsb + tar1090) ──HTTP──▶ homelab (flight-map) ──▶ tablet / screen
+FlightStick ──USB──▶ Raspberry Pi 4 (readsb + tar1090) ──HTTP──▶ homelab (Look Up) ──▶ tablet / screen
 ```
 
 ---
@@ -40,19 +40,19 @@ sudo bash -c "$(wget -nv -O - https://github.com/wiedehopf/tar1090/raw/master/in
 Check that it works:
 
 - Open `http://adsb.local/tar1090/` in a browser. You should see a map with aircraft on it within a minute or two.
-- `http://adsb.local/tar1090/data/aircraft.json` is the URL flight-map needs.
+- `http://adsb.local/tar1090/data/aircraft.json` is the URL Look Up needs.
 
 The install scripts' defaults are a good start. To tune the gain later, see the [readsb install script README](https://github.com/wiedehopf/adsb-scripts/wiki/Automatic-installation-for-readsb).
 
-### Point flight-map at it
+### Point Look Up at it
 
-In the flight-map control panel (`http://HOMELAB:8080/admin`) → **Aircraft data**:
+In the Look Up control panel (`http://HOMELAB:8080/admin`) → **Aircraft data**:
 
 - choose **My receiver**
 - URL: `http://<pi-ip>/tar1090/data/aircraft.json`
 - press **Test connection**
 
-> **Use the Pi's IP address, not `adsb.local`, when flight-map runs in Docker.** Containers usually can't resolve
+> **Use the Pi's IP address, not `adsb.local`, when Look Up runs in Docker.** Containers usually can't resolve
 > mDNS `.local` names. Give the Pi a DHCP reservation on your router so its address doesn't change.
 
 From the homelab you can sanity-check with:
@@ -97,7 +97,7 @@ The display is just a web page, so a screen on the Pi only needs a browser in ki
 
    On newer images the binary may be called `chromium`. On the older X11 desktop, put the same command in `~/.config/lxsession/LXDE-pi/autostart` (prefixed with `@`) instead.
 
-4. Reboot. The display reloads itself whenever the flight-map server restarts, so you shouldn't need to touch it again.
+4. Reboot. The display reloads itself whenever the Look Up server restarts, so you shouldn't need to touch it again.
 
 **Screens for outdoors.** Ordinary monitors and tablets are hard to read in direct sun. Look for a "high brightness" panel (1000+ nits), keep it in shade if you can, and leave the theme on _Automatic_, which uses the high-contrast light theme in daylight.
 

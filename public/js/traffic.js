@@ -195,7 +195,7 @@ function renderHeader() {
   $('#day-pick').max = todayKey();
   $('#next').disabled = date >= todayKey();
   $('#today').hidden = date === todayKey();
-  document.title = `Overhead · ${dayTitle(date)}'s traffic`;
+  document.title = `Look Up · ${dayTitle(date)}'s traffic`;
 }
 
 function renderSentence() {

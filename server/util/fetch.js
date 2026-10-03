@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export const USER_AGENT = 'flight-map/0.1 (personal ADS-B display; https://github.com/bmclain/flight-map)';
+export const USER_AGENT = 'look-up/0.1 (personal ADS-B display; https://github.com/bmclain/look-up)';
 
 const hostOf = (url) => {
   try {

@@ -24,7 +24,7 @@ await app.start({ loadDatabases: process.env.SKIP_AIRCRAFT_DB !== '1' });
 
 const server = createHttpServer(app, { adminPassword: process.env.ADMIN_PASSWORD || '' });
 server.listen(port, () => {
-  log.info(`flight-map listening on http://0.0.0.0:${port}`);
+  log.info(`Look Up listening on http://0.0.0.0:${port}`);
   log.info(`  display:       http://<this-host>:${port}/display`);
   log.info(`  control panel: http://<this-host>:${port}/admin`);
   log.info(`  data dir:      ${dataDir}`);

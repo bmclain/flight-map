@@ -1,5 +1,5 @@
 {
-  "name": "flight-map",
+  "name": "look-up",
   "version": "0.1.0",
   "description": "Outdoor 'what plane is that?' display for an ADS-B receiver: cycles through nearby aircraft showing type, photo, route and where to look.",
   "type": "module",

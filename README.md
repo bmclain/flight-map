@@ -1,4 +1,4 @@
-# flight-map: "what plane is that?"
+# Look Up: "what plane is that?"
 
 An outdoor display for a home ADS-B receiver. Look up, see a plane, glance at the screen and find out what it is,
 where it's going and where to look. It cycles through the aircraft nearby, one at a time:
@@ -30,14 +30,14 @@ no background tiles._
 
 ```
 AirNav FlightStick ─USB─▶ Raspberry Pi 4 ─────────────▶ homelab server ───────────────▶ tablet / screen
-                          readsb + tar1090              flight-map (this repo)          any browser, full screen
+                          readsb + tar1090              look-up (this repo)             any browser, full screen
                           serves aircraft.json          polls aircraft.json, adds       /display  (the screen)
                                                         types, routes, photos;          /admin    (control panel)
                                                         pushes updates live (SSE)
 ```
 
 - **Pi:** decodes ADS-B and serves `aircraft.json`. See **[docs/raspberry-pi.md](docs/raspberry-pi.md)**.
-- **Homelab:** runs flight-map (Node.js, Docker-friendly). It enriches each aircraft and streams the list to every open
+- **Homelab:** runs Look Up (Node.js, Docker-friendly). It enriches each aircraft and streams the list to every open
   display. Its only npm dependencies are Leaflet and two fonts; there is no build step.
 - **Display:** a web page. Start with a tablet in full-screen mode; later point a Pi-attached screen at the same URL.
 
@@ -46,7 +46,7 @@ AirNav FlightStick ─USB─▶ Raspberry Pi 4 ───────────
 With Docker on the homelab:
 
 ```bash
-git clone https://github.com/bmclain/flight-map.git && cd flight-map
+git clone https://github.com/bmclain/look-up.git && cd look-up
 mkdir -p data            # so the container (uid 1000) can write its config and caches
 docker compose up -d --build
 ```
@@ -116,7 +116,7 @@ The **map** can also be rotated so that the way you face is up (`Map orientation
 - **iPad:** Safari → _Share → Add to Home Screen_ opens it full-screen. Set _Auto-Lock: Never_ and use _Guided
   Access_ to keep it on the page.
 - Browsers only allow the "keep screen awake" API on HTTPS, so over plain `http://` on your LAN rely on the tablet's own
-  stay-awake setting or a kiosk app. Putting flight-map behind your existing HTTPS reverse proxy also works, but put a
+  stay-awake setting or a kiosk app. Putting Look Up behind your existing HTTPS reverse proxy also works, but put a
   password in front of it: the display shows where you live, and `/admin` is open unless `ADMIN_PASSWORD` is set. Don't
   rely on an IP allowlist alone: many routers make forwarded connections from the internet look like they come from
   the router's own LAN address.
@@ -145,7 +145,7 @@ New files are picked up within a minute, so you can build a matching set (same a
 over time. To pre-fill the Wikipedia library for ~230 common types in one go:
 
 ```bash
-npm run fetch-images                   # or: docker compose exec flight-map npm run fetch-images
+npm run fetch-images                   # or: docker compose exec look-up npm run fetch-images
 npm run fetch-images -- B38M A21N      # just some types
 ```
 

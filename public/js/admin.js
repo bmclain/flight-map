@@ -212,7 +212,7 @@ function updateSavebar(message, cls) {
 function authHeaders() {
   let pw = '';
   try {
-    pw = localStorage.getItem('flightmap.adminPassword') ?? '';
+    pw = localStorage.getItem('lookup.adminPassword') ?? '';
   } catch {
     /* storage unavailable */
   }
@@ -228,7 +228,7 @@ async function apiFetch(url, opts = {}, retry = true) {
     const pw = prompt('Admin password');
     if (pw == null) throw new Error('Password required');
     try {
-      localStorage.setItem('flightmap.adminPassword', pw);
+      localStorage.setItem('lookup.adminPassword', pw);
     } catch {
       /* storage unavailable */
     }
@@ -574,7 +574,7 @@ async function refreshStatus() {
       ),
     ].join('');
   } catch {
-    $('#status').innerHTML = tile('Server', 'Unreachable', 'Is flight-map running?', 'bad');
+    $('#status').innerHTML = tile('Server', 'Unreachable', 'Is Look Up running?', 'bad');
   }
 }
 

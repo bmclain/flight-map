@@ -552,3 +552,28 @@ legend label.check {
     grid-column: 1 / -1;
   }
 }
+
+/* map style previews */
+.style-previews {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.style-previews figure {
+  margin: 0;
+}
+.style-map {
+  height: 130px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f7f6f2;
+}
+.style-map.night {
+  background: #08101d;
+}
+.style-previews figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}

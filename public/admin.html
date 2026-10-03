@@ -239,6 +239,29 @@
           </label>
           <label class="check align-end"><input type="checkbox" data-path="map.labels" /> Label aircraft</label>
         </div>
+        <div data-show="map.tiles=stadia|maptiler|carto|osm">
+          <div class="row-2">
+            <label
+              >Daytime map
+              <select data-path="map.dayStyle" data-styles="light"></select
+            ></label>
+            <label
+              >Night map
+              <select data-path="map.nightStyle" data-styles="dark"></select
+            ></label>
+          </div>
+          <div class="style-previews">
+            <figure>
+              <div class="style-map day" id="style-day"></div>
+              <figcaption>Daytime</figcaption>
+            </figure>
+            <figure>
+              <div class="style-map night" id="style-night"></div>
+              <figcaption>Night</figcaption>
+            </figure>
+          </div>
+          <small class="help" id="style-help"></small>
+        </div>
         <label class="check"
           ><input type="checkbox" data-path="map.miniMap" /> Show a mini map of each flight's route on the aircraft
           card</label

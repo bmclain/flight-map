@@ -3,7 +3,7 @@
 import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 import { compassPoint, compassWord, normalizeDeg } from '/shared/geo.js';
 import { distanceUnit, formatDistance, joinUnit, kmToUnit, unitToKm } from '/shared/units.js';
-import { tileSpec } from '/shared/tiles.js';
+import { TILE_PROVIDERS, tileSpec } from '/shared/tiles.js';
 import { SPECIAL_KINDS, SPECIAL_LABELS } from '/shared/special-kinds.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -62,6 +62,7 @@ function writeInput(el) {
 }
 
 function render() {
+  renderStyleOptions();
   for (const el of $$('[data-path]')) writeInput(el);
   for (const el of $$('[data-unit="distance"]')) el.textContent = distanceUnit(units());
   for (const el of $$('[data-show]')) {
@@ -71,6 +72,7 @@ function render() {
   renderDial();
   renderLocation();
   renderSpecial();
+  renderStylePreviews();
   updateSavebar();
 }
 
@@ -81,11 +83,68 @@ function onInput(e) {
   const v = readInput(el);
   if (v === undefined || (typeof v === 'number' && !Number.isFinite(v))) return;
   setPath(draft, el.dataset.path, v);
+  // Style names are per provider: start the new one on its defaults.
+  if (el.dataset.path === 'map.tiles') draft.map.dayStyle = draft.map.nightStyle = '';
   el.classList.remove('invalid');
   render();
 }
 document.addEventListener('input', onInput);
 document.addEventListener('change', onInput);
+
+// ---- map styles ----------------------------------------------------------------------
+
+let styleOptionsFor = null;
+/** Fill the daytime / night style pickers with the chosen provider's styles. */
+function renderStyleOptions() {
+  const p = TILE_PROVIDERS[draft.map.tiles];
+  if (!p || styleOptionsFor === draft.map.tiles) return;
+  styleOptionsFor = draft.map.tiles;
+  for (const sel of $$('select[data-styles]')) {
+    const def = p.styles[sel.dataset.styles === 'light' ? p.day : p.night].label;
+    sel.innerHTML =
+      `<option value="">Default: ${esc(def)}</option>` +
+      Object.entries(p.styles)
+        .map(([id, s]) => `<option value="${esc(id)}">${esc(s.label)}</option>`)
+        .join('');
+  }
+}
+
+const stylePreviews = {};
+/** Two small maps around the receiver in the chosen daytime and night styles. */
+function renderStylePreviews() {
+  for (const [theme, id] of [
+    ['light', 'style-day'],
+    ['dark', 'style-night'],
+  ]) {
+    const el = document.getElementById(id);
+    if (!el.offsetWidth) continue; // hidden: no provider with styles
+    let pv = stylePreviews[id];
+    if (!pv) {
+      const map = L.map(el, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        keyboard: false,
+      });
+      pv = stylePreviews[id] = { map, layer: null, key: null };
+    }
+    pv.map.invalidateSize({ animate: false });
+    pv.map.setView([draft.receiver.lat, draft.receiver.lon], 10, { animate: false });
+    const spec = tileSpec(draft.map, theme);
+    const key = spec ? `${spec.url}|${spec.filter}` : 'none';
+    if (key === pv.key) continue;
+    pv.key = key;
+    if (pv.layer) pv.map.removeLayer(pv.layer);
+    pv.layer = spec ? L.tileLayer(spec.url, { subdomains: spec.subdomains, maxZoom: 18 }).addTo(pv.map) : null;
+    pv.map.getPane('tilePane').style.filter = spec?.filter ?? '';
+  }
+  const p = TILE_PROVIDERS[draft.map.tiles];
+  $('#style-help').textContent =
+    p?.needsKey && !draft.map.tileApiKey.trim() ? 'Enter the map API key to see the previews.' : '';
+}
 
 // ---- special aircraft list -----------------------------------------------------------
 
@@ -245,15 +304,17 @@ let locTiles = null;
 let locTilesKey = null;
 /** The location picker uses the same (saved) background map as the display. */
 function setLocationTiles() {
-  const key = `${saved.map.tiles}|${saved.map.tileApiKey}|${saved.map.customTileUrl}`;
-  if (key === locTilesKey) return;
-  locTilesKey = key;
-  if (locTiles) locMap.removeLayer(locTiles);
   const spec = tileSpec(saved.map, 'light') ?? {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors',
     subdomains: 'abc',
+    filter: '',
   };
+  const key = `${spec.url}|${spec.filter}`;
+  if (key === locTilesKey) return;
+  locTilesKey = key;
+  if (locTiles) locMap.removeLayer(locTiles);
+  locMap.getPane('tilePane').style.filter = spec.filter;
   locTiles = L.tileLayer(spec.url, { maxZoom: 18, attribution: spec.attribution, subdomains: spec.subdomains }).addTo(
     locMap,
   );

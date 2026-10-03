@@ -44,6 +44,10 @@ export const DEFAULT_CONFIG = {
     tiles: 'stadia',
     tileApiKey: '',
     customTileUrl: '',
+    // Style for the daytime and night themes ('' = the provider's default;
+    // see shared/tiles.js for each provider's styles).
+    dayStyle: '',
+    nightStyle: '',
     trailMinutes: 5,
     labels: true,
     // Small map of the flight's route on each aircraft card.
@@ -161,6 +165,8 @@ const SCHEMA = {
     tiles: oneOf(['stadia', 'maptiler', 'carto', 'osm', 'none', 'custom']),
     tileApiKey: str(200),
     customTileUrl: str(500),
+    dayStyle: str(40),
+    nightStyle: str(40),
     trailMinutes: num(0, 60),
     labels: bool(),
     miniMap: bool(),

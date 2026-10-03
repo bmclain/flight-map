@@ -66,12 +66,12 @@ export class MapView {
   }
 
   #setTiles(mapCfg, theme) {
-    const key = `${mapCfg.tiles}|${mapCfg.customTileUrl}|${mapCfg.tileApiKey}|${theme}`;
+    const spec = tileSpec(mapCfg, theme);
+    const key = spec ? `${spec.url}|${spec.filter}` : 'none';
     if (key === this.tileKey) return;
     this.tileKey = key;
     if (this.tileLayer) this.map.removeLayer(this.tileLayer);
     this.tileLayer = null;
-    const spec = tileSpec(mapCfg, theme);
     if (this.attribEl) this.attribEl.textContent = spec?.attribution ?? '';
     if (spec) {
       this.tileLayer = L.tileLayer(spec.url, { maxZoom: 18, crossOrigin: true, subdomains: spec.subdomains }).addTo(

@@ -20,8 +20,11 @@ const TRAIL_TAPER = [
   { weight: 1, opacity: 1 },
 ];
 // Line width (px) and opacity of a trail, by how much attention the plane gets.
+// The plane on the card gets a soft glow in its own colour; a tapped plane's
+// whole flight is drawn in altitude colours instead (see select()).
 const TRAIL_STYLE = {
-  current: { weight: 5, opacity: 1 },
+  selected: { weight: 5, opacity: 1 },
+  current: { weight: 4.5, opacity: 1, glow: 8 },
   cycle: { weight: 3.5, opacity: 1 },
   far: { weight: 2.5, opacity: 0.85 },
 };
@@ -58,6 +61,23 @@ function sizeScale(typeInfo) {
   }
 }
 
+/**
+ * [lat, lon, …] points with each longitude shifted by whole turns to sit next
+ * to the one after it, working back from `lon` (where the plane is now), so a
+ * flight across the antimeridian draws as one line.
+ */
+function unwrapBack(points, lon) {
+  let ref = lon;
+  const out = new Array(points.length);
+  for (let i = points.length - 1; i >= 0; i--) {
+    const p = points[i];
+    const l = p[1] + Math.round((ref - p[1]) / 360) * 360;
+    out[i] = [p[0], l, p[2], p[3]];
+    ref = l;
+  }
+  return out;
+}
+
 const specialKind = (ac) => ac.special?.kind ?? (ac.military ? 'military' : null);
 const compact = (s) => s?.replace(/[\s-]/g, '');
 
@@ -87,6 +107,8 @@ export class MapView {
     this.rotation = 0;
     this.settings = null;
     this.tileKey = null;
+    this.selected = null; // { hex, flight, avoidLeftPx, fitted }: a tapped plane, see select()
+    this.baseZoom = 10;
 
     this.map = L.map(el, {
       zoomControl: false,
@@ -105,7 +127,7 @@ export class MapView {
     });
     this.overlay = L.layerGroup().addTo(this.map);
     this.trailLayer = L.layerGroup().addTo(this.map);
-    // The selected plane's path, coloured by altitude.
+    // A tapped plane's whole flight, coloured by altitude.
     this.altLayer = L.layerGroup().addTo(this.map);
     this.planeLayer = L.layerGroup().addTo(this.map);
   }
@@ -265,12 +287,66 @@ export class MapView {
 
   #fit(w, h) {
     if (!this.settings || !w || !h) return;
+    // Zoomed out to a tapped plane's flight: fit that again instead (on the next update).
+    if (this.selected) {
+      this.selected.fitted = false;
+      return;
+    }
     const { receiver, display, map } = this.settings;
     const rangeKm = this.fitKm ?? Math.min(map.rangeKm, display.cycleRangeKm * 3);
     const px = Math.min(w, h) * 0.92;
     const metersPerPx = (rangeKm * 2000) / px;
     const zoom = Math.log2((156543.03392 * Math.cos((receiver.lat * Math.PI) / 180)) / metersPerPx);
-    this.map.setView([receiver.lat, receiver.lon], Math.max(3, Math.min(16, zoom)), { animate: false });
+    this.baseZoom = Math.max(3, Math.min(16, zoom));
+    this.map.setView([receiver.lat, receiver.lon], this.baseZoom, { animate: false });
+  }
+
+  /**
+   * A plane tapped on the map: fetch its whole flight since take-off (from
+   * adsb.lol, via the server), draw it in altitude colours, and zoom the map
+   * out to fit it, the way flight-tracking sites show a selected flight.
+   * null goes back to the normal view.
+   * @param {string|null} hex
+   * @param {{ avoidLeftPx?: number }} opts  room to keep clear on the left (the pop-up)
+   */
+  select(hex, { avoidLeftPx = 0 } = {}) {
+    if (hex === (this.selected?.hex ?? null)) return;
+    if (!hex) {
+      this.selected = null;
+      this.#fit(this.wrap.clientWidth, this.wrap.clientHeight);
+      return;
+    }
+    const sel = { hex, flight: null, avoidLeftPx, fitted: false };
+    this.selected = sel;
+    fetch(`/api/aircraft/${hex}/track`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null)
+      .then((body) => {
+        if (this.selected !== sel) return;
+        sel.flight = body?.track?.points ?? [];
+        sel.fitted = false;
+      });
+  }
+
+  /** Zoom out to show a tapped plane's flight, once its flight has arrived. */
+  #fitSelected(latlngs) {
+    const sel = this.selected;
+    if (!sel || sel.flight === null || sel.fitted || latlngs.length < 2) return;
+    const w = this.wrap.clientWidth;
+    const h = this.wrap.clientHeight;
+    if (!w || !h) return;
+    sel.fitted = true;
+    const pad = Math.round(Math.min(w, h) * 0.08);
+    // Keep the flight out from under the pop-up when there's room beside it.
+    const room = sel.avoidLeftPx && w - sel.avoidLeftPx > w * 0.4 ? sel.avoidLeftPx : 0;
+    this.map.fitBounds(L.latLngBounds(latlngs), {
+      // Extra room on the right for the plane's label.
+      paddingTopLeft: [pad + room, pad + 40],
+      paddingBottomRight: [pad + 140, pad + 40],
+      // Never closer in than the normal view.
+      maxZoom: this.baseZoom,
+      animate: false,
+    });
   }
 
   /**
@@ -375,16 +451,16 @@ export class MapView {
   /**
    * Each plane's track over the last `map.trailMinutes`, in the plane's colour,
    * thinning out towards the old end, on a thin casing that keeps it readable
-   * over the map and over other trails. The selected plane's track is coloured
-   * by altitude instead. The lines are kept and reshaped from one update to the
-   * next rather than redrawn.
+   * over the map and over other trails. The plane on the card glows in its own
+   * colour; a tapped plane's whole flight is coloured by altitude. The lines are
+   * kept and reshaped from one update to the next rather than redrawn.
    */
   #drawTrails(aircraft, groups, trails, currentHex, cycleHexes, now) {
     const minutes = this.settings.map.trailMinutes;
     const since = now - minutes * 60_000;
     const seen = new Set();
     let current = null;
-    let currentPts = null;
+    let selected = null;
     for (const ac of minutes ? aircraft : []) {
       const track = trails.get(ac.hex);
       if (!track?.length) continue;
@@ -392,7 +468,14 @@ export class MapView {
       if (!pts.length) continue;
       pts.push([ac.lat, ac.lon, now, ac.onGround ? 0 : (ac.altFt ?? ac.altGeomFt ?? null)]);
       seen.add(ac.hex);
-      const role = ac.hex === currentHex ? 'current' : cycleHexes.has(ac.hex) ? 'cycle' : 'far';
+      const role =
+        ac.hex === this.selected?.hex
+          ? 'selected'
+          : ac.hex === currentHex
+            ? 'current'
+            : cycleHexes.has(ac.hex)
+              ? 'cycle'
+              : 'far';
       const color = this.#color(groups.get(ac.hex));
       let t = this.trails.get(ac.hex);
       if (!t) {
@@ -403,20 +486,24 @@ export class MapView {
       if (t.role !== role || t.color !== color) {
         t.role = role;
         t.color = color;
-        const { weight, opacity } = TRAIL_STYLE[role];
-        t.casing.setStyle({ color: this.colors.get('casing'), weight: weight + 3, opacity: opacity * 0.45 });
+        const { weight, opacity, glow } = TRAIL_STYLE[role];
+        t.casing.setStyle(
+          glow
+            ? { color, weight: weight + glow, opacity: 0.3 }
+            : { color: this.colors.get('casing'), weight: weight + 3, opacity: opacity * 0.45 },
+        );
         t.parts.forEach((p, i) =>
           p.setStyle({ color, weight: weight * TRAIL_TAPER[i].weight, opacity: opacity * TRAIL_TAPER[i].opacity }),
         );
       }
       t.casing.setLatLngs(pts.map(([lat, lon]) => [lat, lon]));
-      if (role === 'current') {
-        // Drawn by altitude below instead.
+      if (role === 'selected') {
+        // The whole flight, in altitude colours, below.
         for (const p of t.parts) p.setLatLngs([]);
-        current = t;
-        currentPts = pts;
+        selected = { t, ac, pts };
         continue;
       }
+      if (role === 'current') current = t;
       // Split the track into equal stretches of time, each sharing its end point with the next.
       const t0 = pts[0][2];
       const span = Math.max(1, now - t0);
@@ -436,25 +523,58 @@ export class MapView {
       for (const p of t.parts) this.trailLayer.removeLayer(p);
       this.trails.delete(hex);
     }
-    // The selected plane's trail is drawn over the others (its altitude colours are on a layer above).
-    if (current) current.casing.bringToFront();
-    this.#drawAltitudeTrail(currentPts);
+    // The plane on the card is drawn over the other trails (a tapped plane's altitude colours are on a layer above).
+    if (current) for (const l of [current.casing, ...current.parts]) l.bringToFront();
+    let flight = null;
+    if (selected) {
+      // Its flight from take-off (adsb.lol) up to where our own track begins, then our track.
+      const { t, ac, pts } = selected;
+      const before = (this.selected.flight ?? []).filter((p) => p[2] < pts[0][2]);
+      flight = unwrapBack([...before, ...pts], ac.lon);
+      t.casing.setLatLngs(flight.map(([lat, lon]) => [lat, lon]));
+      t.casing.bringToFront();
+      this.#fitSelected(flight.map(([lat, lon]) => [lat, lon]));
+    }
+    this.#drawAltitudeTrail(flight);
+    // All the lines share one SVG, so the altitude colours have to be moved
+    // back on top of the casings brought forward above.
+    for (const l of this.altLayer.getLayers()) l.bringToFront();
   }
 
-  /** The selected plane's path in altitude colours: one line per stretch of the same colour. */
+  /**
+   * A tapped plane's flight in altitude colours: one line per stretch of the
+   * same colour. Rebuilt only when the flight gains a point; in between, the
+   * end of the last line just follows the plane.
+   */
   #drawAltitudeTrail(pts) {
-    this.altLayer.clearLayers();
     if (this.altScaleEl) this.altScaleEl.hidden = !pts;
-    if (!pts) return;
+    if (!pts) {
+      this.altLayer.clearLayers();
+      this.altKey = null;
+      return;
+    }
     const theme = this.settings.theme;
-    const { weight } = TRAIL_STYLE.current;
+    const key = `${this.selected?.hex}|${theme}|${pts.length}|${pts[pts.length - 2]?.[2]}`;
+    const end = pts[pts.length - 1];
+    if (key === this.altKey) {
+      const last = this.altLayer.getLayers().at(-1);
+      const lls = last?.getLatLngs();
+      if (lls?.length) {
+        lls[lls.length - 1] = L.latLng(end[0], end[1]);
+        last.setLatLngs(lls);
+      }
+      return;
+    }
+    this.altKey = key;
+    this.altLayer.clearLayers();
+    const { weight } = TRAIL_STYLE.selected;
     const flush = (run, color) =>
       L.polyline(
         run.map(([lat, lon]) => [lat, lon]),
         { color, weight, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false },
       ).addTo(this.altLayer);
-    // Points without an altitude (recorded by an older version, or a gap in the
-    // data) take the nearest altitude before them, or failing that after them.
+    // Points without an altitude (a gap in the data) take the nearest altitude
+    // before them, or failing that after them.
     const alts = pts.map((p) => p[3] ?? null);
     for (let i = 1; i < alts.length; i++) alts[i] ??= alts[i - 1];
     for (let i = alts.length - 2; i >= 0; i--) alts[i] ??= alts[i + 1];

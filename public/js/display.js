@@ -478,6 +478,8 @@ function openPopup(hex) {
   popHex = hex;
   popUntil = Date.now() + POP_IDLE_MS;
   $('pop').hidden = false;
+  // Its whole flight, coloured by altitude, with the map zoomed out to fit it.
+  mapView.select(hex, { avoidLeftPx: $('pop').offsetWidth + 16 });
   // Far-away aircraft aren't looked up by default; ask for its route and photo.
   fetch(`/api/aircraft/${hex}/lookup`, { method: 'POST' }).catch(() => {});
   renderPopup();
@@ -488,6 +490,7 @@ function closePopup() {
   if (!popHex) return;
   popHex = null;
   $('pop').hidden = true;
+  mapView.select(null);
   onAircraft();
 }
 

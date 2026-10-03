@@ -20,7 +20,7 @@ const LEG_START_FLAG = 2;
 const NEW_FLIGHT_GAP_MS = 3 * 3600_000;
 const MIN_STEP_M = 500;
 
-/** readsb trace JSON → [{ lat, lon, t, ground, legStart }] (t in ms). */
+/** readsb trace JSON → [{ lat, lon, t, alt, ground, legStart }] (t in ms, alt in ft, 0 on the ground). */
 export function parseTrace(json) {
   const base = json?.timestamp;
   if (!Number.isFinite(base) || !Array.isArray(json.trace)) return [];
@@ -30,6 +30,8 @@ export function parseTrace(json) {
       lat: p[1],
       lon: p[2],
       t: Math.round((base + p[0]) * 1000),
+      // Barometric altitude, or the GPS one when that's all there is.
+      alt: p[3] === 'ground' ? 0 : Number.isFinite(p[3]) ? p[3] : Number.isFinite(p[10]) ? p[10] : null,
       ground: p[3] === 'ground',
       legStart: (p[6] & LEG_START_FLAG) !== 0,
     }));
@@ -60,14 +62,14 @@ export function currentFlight(points) {
   return points.slice(start);
 }
 
-/** Thin out points closer together than MIN_STEP_M (keeping the last one) → [[lat, lon, t]]. */
+/** Thin out points closer together than MIN_STEP_M (keeping the last one) → [[lat, lon, t, altFt]]. */
 export function thinTrack(points) {
   const out = [];
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     const prev = out[out.length - 1];
     if (prev && i < points.length - 1 && distanceM(prev[0], prev[1], p.lat, p.lon) < MIN_STEP_M) continue;
-    out.push([Math.round(p.lat * 1e5) / 1e5, Math.round(p.lon * 1e5) / 1e5, p.t]);
+    out.push([Math.round(p.lat * 1e5) / 1e5, Math.round(p.lon * 1e5) / 1e5, p.t, p.alt ?? null]);
   }
   return out;
 }
@@ -85,7 +87,7 @@ export class FlightTracks {
   }
 
   /**
-   * The current flight of aircraft `hex` as { points: [[lat, lon, t]], source },
+   * The current flight of aircraft `hex` as { points: [[lat, lon, t, altFt]], source },
    * or null when adsb.lol doesn't have it.
    */
   async get(hex) {

@@ -120,12 +120,13 @@ test('the current flight starts at the last take-off', () => {
   const flight = currentFlight(merged);
   assert.deepEqual([flight[0].lat, flight[0].lon], [61.18, -149.99]);
   assert.equal(flight[flight.length - 1].lat, 56.0);
-  assert.deepEqual(thinTrack(flight)[4], [56, -118.001, (BASE + 25003) * 1000]);
+  assert.deepEqual(thinTrack(flight)[4], [56, -118.001, (BASE + 25003) * 1000, 33000]);
+  assert.equal(thinTrack(flight)[0][3], 0, 'on the ground at Anchorage');
   assert.deepEqual(parseTrace({ nope: 1 }), []);
 });
 
 test('flight tracks drop points within 500 m of the last one kept, but keep the end', () => {
-  const pt = (lat, lon, t) => ({ lat, lon, t });
+  const pt = (lat, lon, t) => ({ lat, lon, t, alt: null });
   const thin = thinTrack([
     pt(56, -118, 0),
     pt(56, -118.001, 1),

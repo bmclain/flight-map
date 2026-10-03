@@ -136,3 +136,17 @@ test('show() brings up a tapped aircraft, even outside the cycle range, then cyc
   c.show('far', 12_000, ctx(pool, { all }));
   assert.notEqual(c.update(13_000, ctx(pool, { all: pool })).hex, 'far', 'leaves when the plane disappears');
 });
+
+test('the map can be held until released, or until a card is asked for', () => {
+  const c = new Cycler();
+  const pool = [ac('a', 1), ac('b', 2)];
+  c.update(0, ctx(pool));
+  c.holdMap(1000);
+  assert.equal(c.update(1_000_000, ctx(pool)).kind, 'map', 'still on the map long after a normal map slot');
+  c.releaseMap(1_000_000);
+  assert.equal(c.update(1_000_001, ctx(pool)).kind, 'card');
+  c.holdMap(2_000_000);
+  c.show('b', 2_000_001, ctx(pool));
+  assert.equal(c.mapHeld, false);
+  assert.equal(c.update(2_000_002, ctx(pool)).hex, 'b');
+});

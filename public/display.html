@@ -131,6 +131,10 @@
         <div id="map-rotor"><div id="map"></div></div>
         <div class="map-title" id="map-title"></div>
         <div class="map-attrib" id="map-attrib"></div>
+        <div class="map-keys">
+          <div class="map-altitude" id="map-altitude" hidden></div>
+          <div class="map-legend" id="map-legend"></div>
+        </div>
         <aside class="ac-pop" id="pop" hidden aria-live="polite">
           <button type="button" class="pop-close" data-pop="close" aria-label="Close">×</button>
           <div class="pop-head">
@@ -190,11 +194,17 @@
 
     <nav id="controls" aria-label="Display controls">
       <button data-action="prev" title="Previous (←)">‹</button>
-      <button data-action="pin" title="Hold on this aircraft (space)" id="pin-btn">❚❚</button>
+      <button data-action="pin" title="Hold on this aircraft (space)" id="pin-btn" aria-label="Hold on this aircraft">
+        <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="6.5" y="5" width="3.2" height="14" rx="1" />
+          <rect x="14.3" y="5" width="3.2" height="14" rx="1" />
+        </svg>
+        <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+      </button>
       <button data-action="next" title="Next (→)">›</button>
-      <button data-action="map" title="Map (M)">Map</button>
+      <button data-action="map" title="Stay on the map (M)" id="map-btn">Map</button>
+      <button data-action="theme" id="theme-btn" title="Light or dark (T)">◐ Auto</button>
       <button data-action="fullscreen" title="Full screen (F)">⛶</button>
-      <a href="/traffic" title="Today's traffic">Today</a>
       <a href="/admin" title="Settings">⚙</a>
     </nav>
 

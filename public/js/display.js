@@ -24,10 +24,23 @@ const esc = (s) =>
 // ---- per-screen overrides ------------------------------------------------------
 
 const params = new URLSearchParams(location.search);
+const THEMES = ['auto', 'dark', 'light'];
+const THEME_KEY = 'look-up.theme';
+
+/** Light / dark chosen with the button on this screen (kept in this browser), or null. */
+function storedTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return THEMES.includes(t) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
 const overrides = {
   facingDeg: params.has('facing') ? Number(params.get('facing')) : null,
   layout: ['card', 'split'].includes(params.get('layout')) ? params.get('layout') : null,
-  theme: ['auto', 'dark', 'light'].includes(params.get('theme')) ? params.get('theme') : null,
+  theme: storedTheme() ?? (THEMES.includes(params.get('theme')) ? params.get('theme') : null),
   units: ['imperial', 'aviation', 'metric'].includes(params.get('units')) ? params.get('units') : null,
 };
 
@@ -58,6 +71,8 @@ const mapView = new MapView({
   title: $('map-title'),
   compass: $('map-compass'),
   attribution: $('map-attrib'),
+  legend: $('map-legend'),
+  altitudeScale: $('map-altitude'),
   onSelect: (hex) => openPopup(hex),
 });
 
@@ -124,11 +139,44 @@ function applyTheme() {
         ? 'light'
         : 'dark'
       : eff.display.theme;
+  updateThemeButton();
   if (want === theme) return;
   theme = want;
   document.body.dataset.theme = theme;
   document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#f7f6f2' : '#08101d';
   configureMap();
+}
+
+const THEME_BUTTON = { auto: '◐ Auto', dark: '☾ Dark', light: '☀ Light' };
+
+function updateThemeButton() {
+  const btn = $('theme-btn');
+  const mode = eff.display.theme;
+  btn.textContent = THEME_BUTTON[mode];
+  btn.title =
+    mode === 'auto'
+      ? 'Light by day, dark at night. Tap to choose (T)'
+      : `Always ${mode} on this screen. Tap to change (T)`;
+}
+
+/**
+ * The theme button steps through: the opposite of what the sun says, then
+ * what the sun says, then back to following the sun (Auto). The choice is
+ * kept in this browser only, so each screen can have its own.
+ */
+function cycleTheme() {
+  const { receiver } = eff;
+  const sun = isDaylight(new Date(), receiver.lat, receiver.lon) ? 'light' : 'dark';
+  const mode = eff.display.theme;
+  const next = mode === 'auto' ? (sun === 'light' ? 'dark' : 'light') : mode === sun ? 'auto' : sun;
+  overrides.theme = next;
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    /* storage blocked: the choice lasts until the page reloads */
+  }
+  eff = effective(live.config);
+  applyTheme();
 }
 
 function configureMap() {
@@ -142,6 +190,7 @@ function configureMap() {
     map: eff.map,
     theme,
     enabled: miniMapOn,
+    flightTracks: eff.enrichment?.flightTracks !== false,
   });
 }
 
@@ -165,7 +214,10 @@ function cardIdent(ac) {
   const t = ac.typeInfo;
   let airline = ac.airline?.name || ac.special?.name || '';
   if (!airline && ac.military) airline = 'Military';
-  const ident = [ac.route?.flightIata || ac.callsign, ac.reg && ac.reg !== ac.callsign ? ac.reg : null];
+  // "WS347 · WJA347 · C-GGWJ": the flight as sold, the radio callsign, the registration.
+  // A private plane's callsign is usually its registration without the dash: show it once.
+  const sameAsReg = ac.reg && ac.callsign?.replace(/[\s-]/g, '') === ac.reg.replace(/[\s-]/g, '');
+  const ident = [ac.flight, sameAsReg ? null : ac.callsign, ac.reg];
   return {
     maker: t?.manufacturer || (t ? '' : 'Unidentified aircraft'),
     model: t?.model || t?.code || ac.callsign || ac.hex.toUpperCase(),
@@ -569,6 +621,7 @@ function tick() {
     : `${ctx.pool.length} aircraft within ${rangeText()}`;
   $('f-counter').textContent = count;
   $('pin-btn').classList.toggle('active', !!cycler.pinned);
+  $('map-btn').classList.toggle('active', cycler.mapHeld);
   updateStatus();
 }
 
@@ -624,6 +677,7 @@ function onAircraft() {
     currentHex: popHex ?? (view?.kind === 'card' ? view.hex : null),
     cycleHexes: new Set(ctx.pool.map((a) => a.hex)),
     trails: live.trails,
+    now: live.now(),
   });
 }
 
@@ -671,10 +725,13 @@ function act(action, hex) {
         fetch(`/api/aircraft/${hex}/lookup`, { method: 'POST' }).catch(() => {});
       }
       break;
+    case 'theme':
+      cycleTheme();
+      break;
     case 'map':
-      cycler.pinned = null;
-      cycler.view = { kind: 'map', start: now, end: now + ctx.mapMs };
-      cycler.cardsSinceMap = 0;
+      // Stays on the map until pressed again.
+      if (cycler.mapHeld) cycler.releaseMap(now);
+      else cycler.holdMap(now);
       break;
     case 'fullscreen': {
       const el = document.documentElement;
@@ -744,6 +801,8 @@ window.addEventListener('keydown', (e) => {
     M: 'map',
     f: 'fullscreen',
     F: 'fullscreen',
+    t: 'theme',
+    T: 'theme',
   };
   if (e.key === 'Escape' && popHex) {
     closePopup();

@@ -1,6 +1,8 @@
 // Mini map on the aircraft card: the whole flight, origin to destination, with
 // the part already flown, where the plane is now, and the track we've seen.
-// Without a known route it shows just the recent track around you.
+// The flown part is the real track from take-off when adsb.lol has it (see
+// server/enrich/flighttrack.js), otherwise a great circle from the origin.
+// Without a known route it shows just the track.
 import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 import { greatCirclePoints } from '/shared/geo.js';
 import { tileSpec } from '/shared/tiles.js';
@@ -14,6 +16,17 @@ const esc = (s) =>
 
 /** Shift `lon` by whole turns so it is as close as possible to `ref`. */
 const nearLon = (lon, ref) => lon + Math.round((ref - lon) / 360) * 360;
+
+/** [lat, lon, …] points → [lat, lon] with longitudes unwrapped, so a line across the antimeridian stays whole. */
+function unwrapTrack(points, refLon) {
+  let prev = refLon;
+  return points.map(([lat, lon]) => {
+    prev = nearLon(lon, prev);
+    return [lat, prev];
+  });
+}
+
+const FLIGHT_REFRESH_MS = 5 * 60_000;
 
 export class MiniMap {
   constructor({ wrap, el, attribution }) {
@@ -52,6 +65,8 @@ export class MiniMap {
     this.plane = L.marker([0, 0], { interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(this.map);
     this.planeKey = null;
     this.last = null;
+    this.flight = null; // { hex, points, at, loading } from /api/aircraft/:hex/track
+    this.tileAttribution = '';
     // The inset changes size with the layout (card, split, portrait); Leaflet
     // needs telling, and the flight re-framing.
     new ResizeObserver(() => {
@@ -81,6 +96,7 @@ export class MiniMap {
     this.aheadLine.setStyle({ color: c.text });
     this.you.setStyle({ color: c.bg, fillColor: c.accent2 });
     this.#setTiles(s.map, s.theme);
+    if (!s.flightTracks) this.flight = null;
     this.#drawRing();
     this.routeKey = null; // redraw the airports in the new colours
     if (wasHidden && s.enabled) this.resize();
@@ -94,13 +110,35 @@ export class MiniMap {
     this.tileKey = key;
     if (this.tileLayer) this.map.removeLayer(this.tileLayer);
     this.tileLayer = null;
-    if (this.attribEl) this.attribEl.textContent = spec?.attribution ?? '';
+    this.tileAttribution = spec?.attribution ?? '';
+    this.#attrib(false);
     if (spec) {
       this.tileLayer = L.tileLayer(spec.url, { maxZoom: 18, crossOrigin: true, subdomains: spec.subdomains }).addTo(
         this.map,
       );
     }
     this.map.getPane('tilePane').style.filter = spec?.filter ?? '';
+  }
+
+  #attrib(withFlight) {
+    if (!this.attribEl) return;
+    this.attribEl.textContent = [this.tileAttribution, withFlight ? 'adsb.lol' : ''].filter(Boolean).join(' · ');
+  }
+
+  /** Fetch the flight so far from take-off; show() runs again when it arrives. */
+  #loadFlight(hex) {
+    const f = this.flight;
+    if (f?.hex === hex && (f.loading || Date.now() - f.at < FLIGHT_REFRESH_MS)) return;
+    const keep = f?.hex === hex ? f.points : null;
+    this.flight = { hex, points: keep, at: Date.now(), loading: true };
+    fetch(`/api/aircraft/${hex}/track`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null)
+      .then((body) => {
+        if (this.flight?.hex !== hex) return;
+        this.flight = { hex, points: body?.track?.points ?? keep, at: Date.now(), loading: false };
+        if (this.last?.[0]?.hex === hex) this.show(...this.last);
+      });
   }
 
   /** Faint ring at the card rotation range, for a sense of scale without tiles. */
@@ -136,13 +174,20 @@ export class MiniMap {
     const r = ac.route;
     const hasRoute = r?.origin?.lat != null && r?.destination?.lat != null;
     this.wrap.classList.toggle('no-route', !hasRoute);
+    if (this.settings.flightTracks) this.#loadFlight(ac.hex);
+
+    // The flight from take-off (adsb.lol) up to where our own track begins.
+    const local = trail ?? [];
+    const localStart = local.length ? local[0][2] : Infinity;
+    const flown = this.flight?.hex === ac.hex ? (this.flight.points ?? []).filter((p) => p[2] < localStart) : [];
+    const hasFlight = flown.length > 1;
+    this.#attrib(hasFlight);
 
     // Work in longitudes unwrapped around the origin (or the receiver) so a
     // trans-Pacific route draws as one line.
-    const refLon = hasRoute ? r.origin.lon : receiver.lon;
-    const pos = [ac.lat, nearLon(ac.lon, refLon)];
-    const track = (trail ?? []).map(([lat, lon]) => [lat, nearLon(lon, refLon)]);
-    track.push(pos);
+    const refLon = hasRoute ? r.origin.lon : hasFlight ? flown[0][1] : receiver.lon;
+    const track = unwrapTrack([...flown, ...local, [ac.lat, ac.lon]], refLon);
+    const pos = track[track.length - 1];
 
     let origin;
     let dest;
@@ -150,7 +195,8 @@ export class MiniMap {
       origin = { lat: r.origin.lat, lon: r.origin.lon };
       dest = { lat: r.destination.lat, lon: nearLon(r.destination.lon, refLon) };
       this.#drawAirports(ac.hex, r, origin, dest);
-      this.flownLine.setLatLngs(greatCirclePoints(origin, { lat: pos[0], lon: pos[1] }, 48));
+      // The real track from take-off replaces the great-circle guess.
+      this.flownLine.setLatLngs(hasFlight ? [] : greatCirclePoints(origin, { lat: pos[0], lon: pos[1] }, 48));
       const ahead = greatCirclePoints({ lat: pos[0], lon: pos[1] }, dest, 48);
       this.aheadLine.setLatLngs(ahead.map(([lat, lon]) => [lat, nearLon(lon, pos[1])]));
     } else {
@@ -163,13 +209,13 @@ export class MiniMap {
     this.#drawPlane(ac, pos);
 
     // Re-frame for a new aircraft or route, or when the plane nears the edge.
-    const fitKey = `${ac.hex}|${hasRoute ? `${r.origin.lat},${r.origin.lon}>${r.destination.lat},${r.destination.lon}` : ''}`;
+    const fitKey = `${ac.hex}|${hasRoute ? `${r.origin.lat},${r.origin.lon}>${r.destination.lat},${r.destination.lon}` : ''}|${hasFlight}`;
     const inside = this.fitKey && this.map.getBounds().pad(-0.12).contains(pos);
     if (fitKey !== this.fitKey || !inside) {
       this.fitKey = fitKey;
       this.#fit(
         hasRoute
-          ? [[origin.lat, origin.lon], [dest.lat, dest.lon], pos]
+          ? [[origin.lat, origin.lon], [dest.lat, dest.lon], pos, ...(hasFlight ? [track[0]] : [])]
           : [...track, [receiver.lat, nearLon(receiver.lon, refLon)]],
       );
     }

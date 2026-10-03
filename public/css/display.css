@@ -22,12 +22,17 @@ body[data-theme='dark'] {
   --map-plane: #dbe6f5;
   --map-plane-dim: #7d8ca3;
   --sp-police: #3b7bff;
-  --sp-ambulance: #f04848;
+  --sp-ambulance: #c561c9;
   --sp-firefighting: #f2701c;
   --sp-rescue: #f2c218;
   --sp-military: #6f9a2e;
   --sp-government: #9068e8;
   --sp-other: #1a9fb8;
+  /* Private planes on the map; airlines are drawn in their brand colours (shared/plane-groups.js). */
+  --pg-private: #8a97ab;
+  /* Text on a plane's colour (the selected plane's label). */
+  --pc-ink: #0b0f17;
+  --trail-casing: #000000;
   color-scheme: dark;
 }
 
@@ -46,13 +51,27 @@ body[data-theme='light'] {
   --map-plane: #0a0f1a;
   --map-plane-dim: #6b7486;
   --sp-police: #1f5fe0;
-  --sp-ambulance: #d42a2a;
+  --sp-ambulance: #b0279a;
   --sp-firefighting: #d9590c;
   --sp-rescue: #e0ac00;
   --sp-military: #4f7a12;
   --sp-government: #6d3fd6;
   --sp-other: #0e7f96;
+  --pg-private: var(--map-plane-dim);
+  --pc-ink: #ffffff;
+  --trail-casing: #ffffff;
   color-scheme: light;
+}
+
+/* Special aircraft keep their kind's colour on the map too. */
+body {
+  --pg-police: var(--sp-police);
+  --pg-ambulance: var(--sp-ambulance);
+  --pg-firefighting: var(--sp-firefighting);
+  --pg-rescue: var(--sp-rescue);
+  --pg-military: var(--sp-military);
+  --pg-government: var(--sp-government);
+  --pg-other: var(--sp-other);
 }
 
 * {
@@ -263,6 +282,11 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
 .sp-ambulance,
 [data-special='ambulance'] {
   --sp: var(--sp-ambulance);
+}
+/* White text is too faint on the dark theme's pink. */
+body[data-theme='dark'] .sp-ambulance,
+body[data-theme='dark'] [data-special='ambulance'] {
+  --sp-ink: #24071c;
 }
 .sp-firefighting,
 [data-special='firefighting'] {
@@ -737,6 +761,91 @@ body[data-theme='light'] .leaflet-tile-pane {
   pointer-events: none;
 }
 
+/* Bottom-left of the map: the altitude key (when a plane is selected) above the summary. */
+.map-keys {
+  position: absolute;
+  left: 2.4vmin;
+  right: 2.4vmin;
+  bottom: 2.4vmin;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1vmin;
+  pointer-events: none;
+}
+
+/* The summary: which colour is which, with counts. */
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6vmin 1.6vmin;
+  max-width: 100%;
+  padding: 1vmin 1.6vmin;
+  border-radius: 1.4vmin;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  font-size: max(11px, 1.6vmin);
+  font-weight: 500;
+  color: var(--text);
+  pointer-events: none;
+}
+.map-legend:empty {
+  display: none;
+}
+.map-legend .lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  white-space: nowrap;
+}
+.map-legend i {
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent);
+}
+.map-legend b {
+  font-weight: 600;
+  color: var(--muted);
+}
+/* Key to the altitude colours of the selected plane's path. */
+.map-altitude {
+  width: min(34vmin, 100%);
+  padding: 0.8vmin 1.4vmin 0.6vmin;
+  border-radius: 1.2vmin;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  font-size: max(10px, 1.3vmin);
+  color: var(--muted);
+  pointer-events: none;
+}
+.map-altitude[hidden] {
+  display: none;
+}
+.map-altitude .as-title {
+  display: block;
+  margin-bottom: 0.4vmin;
+  font-weight: 600;
+  color: var(--text);
+}
+.map-altitude .as-bar {
+  display: block;
+  height: max(6px, 0.9vmin);
+  border-radius: 99px;
+}
+.map-altitude .as-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3vmin;
+}
+
+/* Kinds that are always listed, with none on the map right now. */
+.map-legend .lg.none {
+  opacity: 0.45;
+}
+body[data-layout='split'] .map-legend {
+  font-size: max(10px, 1.4vmin);
+}
+
 .map-title {
   position: absolute;
   left: 2.4vmin;
@@ -807,17 +916,32 @@ body[data-layout='split'] .map-title {
 .ac-marker svg {
   width: 100%;
   height: 100%;
-  fill: var(--map-plane-dim);
+  /* --pc: the plane's colour group (airline, police, …), set by map.js */
+  fill: var(--pc, var(--map-plane-dim));
   stroke: var(--bg);
   stroke-width: 3;
   paint-order: stroke;
   overflow: visible;
 }
-.ac-marker.in-cycle svg {
-  fill: var(--map-plane);
+/* Planes beyond the card range step back a little. */
+.ac-marker:not(.in-cycle):not(.current) .glyph {
+  opacity: 0.8;
 }
-.ac-marker.current svg {
-  fill: var(--accent);
+/* The selected plane (on the card, or tapped): outlined in the accent colour, like its label. */
+/* The selected plane (on the card, or tapped): a thin outline in its own
+   colour, set off from the plane by a gap. */
+.ac-marker .halo {
+  display: none;
+}
+.ac-marker.current .halo {
+  display: inline;
+  fill: none;
+  stroke: var(--pc, var(--accent));
+  stroke-width: 9;
+  stroke-linejoin: round;
+}
+.ac-marker.current .body {
+  stroke-width: 4;
 }
 .ac-marker .label {
   position: absolute;
@@ -830,16 +954,26 @@ body[data-layout='split'] .map-title {
   display: inline-block;
   margin: 1.6vmin 0 0 1.6vmin;
   padding: 0.2em 0.5em;
+  border-left: 0.35em solid var(--pc, transparent);
   border-radius: 0.5em;
   font-size: max(11px, 1.5vmin);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.2;
   color: var(--text);
   background: color-mix(in srgb, var(--panel) 82%, transparent);
 }
+.ac-marker .label b {
+  font-weight: 600;
+}
+/* Second line: the radio callsign (or registration). */
+.ac-marker .label small {
+  display: block;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
 .ac-marker.current .label span {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--pc, var(--accent));
+  color: var(--pc-ink);
 }
 .ac-marker:not(.in-cycle):not(.current) .label {
   display: none;
@@ -1032,6 +1166,19 @@ body.show-controls #controls {
 #controls button.active {
   background: var(--accent);
   color: var(--accent-ink);
+}
+#controls svg {
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
+}
+/* Hold button: pause while cycling, play (carry on) while holding. */
+#pin-btn .i-play,
+#pin-btn.active .i-pause {
+  display: none;
+}
+#pin-btn.active .i-play {
+  display: block;
 }
 
 /* ---- container-size variants (must come after the base rules) ---------------- */

@@ -81,10 +81,12 @@ map (or a clock) with the nearest traffic.
 - **Tap the right side** (or swipe left, or press →) for the next aircraft. **Tap the left side** (or ←) goes back.
 - **Tap a plane on the map** for a pop-up with everything on its card and a small photo (its route and photo are looked
   up even if it's far away). _Show full card_ switches to its card; the map stays up while the pop-up is open.
-- **Tap anywhere** to bring up controls: hold on this aircraft (space), show the map (M), full screen (F), settings.
+- **Tap anywhere** to bring up controls: hold on this aircraft (space), stay on the map until pressed again (M), light /
+  dark / auto (T), full screen (F), settings.
 - **Spotlight** (off by default): when an aircraft is very close and low, probably the one you're staring at, the
   display stays on it instead of cycling. Leave it off or keep the radius small if you live under an approach path.
-- The theme switches automatically between light (daylight, best in sun) and dark (night).
+- The theme switches automatically between light (daylight, best in sun) and dark (night), unless you pick one with the
+  theme button; each screen remembers its own choice.
 - The page reconnects by itself, and reloads itself when the server is restarted or upgraded.
 
 **Per-screen settings.** URL parameters override the saved settings for one screen, which is handy when the tablet and a
@@ -93,6 +95,26 @@ Pi screen face different ways:
 ```
 /display?facing=135&layout=split&theme=dark&units=metric
 ```
+
+### The map
+
+- Each plane is drawn in its airline's colour (the brand colour for airlines listed in `shared/airlines.js`, a steady
+  colour of its own for the rest), special aircraft in their kind's colour and private planes in grey, and sized by the
+  aircraft, so a light plane is clearly smaller than an airliner.
+- Its path covers the last `map.trailMinutes`, thinning towards the old end. The server keeps every plane's track since
+  it was first heard (and across restarts), so paths are there as soon as a screen opens.
+- The selected plane (on the card, or tapped) gets an outline, and its path is coloured by altitude, orange near the
+  ground through yellow, green and blue to purple at 40,000 ft and up, with a key in the corner.
+- Labels show the flight number and model, then the airline (or private, police, air ambulance…), altitude and speed.
+- The summary in the corner counts the planes per airline, then police, air ambulance, government, military and private.
+
+**Flight numbers.** Planes broadcast an ICAO callsign such as `WJA347`; the display shows the flight number as sold,
+`WS347`. Two-letter airline codes come from `shared/airlines.js` (regional airlines such as WestJet Encore use their
+brand's code) or, for other airlines, adsbdb. Callsigns that aren't a plain number (`ASA12B`) and military or other
+special flights keep their callsign.
+
+**The whole flight.** The card's mini map draws the flight since take-off from [adsb.lol](https://adsb.lol)'s open data
+(ODbL) where it has it, joined to your own receiver's track.
 
 ### Aiming the arrow
 
@@ -216,22 +238,25 @@ Everything is editable in `/admin` and stored in `data/config.json`. Changes rea
 | `map.everyCards` / `map.seconds`       | 5 / 15                                                | 0 = never interleave the map                                                               |
 | `map.rangeKm`                          | 64.37 (40 mi)                                         | aircraft shown on the map                                                                  |
 | `map.orientation`                      | `north-up`                                            | or `facing-up`                                                                             |
+| `map.trailMinutes`                     | 30                                                    | how much of each plane's path to draw (0 = none, up to 180)                                |
 | `map.tiles` / `map.tileApiKey`         | `stadia` / empty                                      | `stadia`, `maptiler` or `carto` (free key needed), `osm`, `none` (offline), `custom`       |
 | `enrichment.photoMode`                 | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
 | `enrichment.routes` / `routeProviders` | on / adsb.im, adsbdb                                  |                                                                                            |
+| `enrichment.flightTracks`              | on                                                    | whole flight since take-off on the mini map, from adsb.lol                                 |
 
 Environment variables: `PORT` (8080), `DATA_DIR` (`./data`), `ADMIN_PASSWORD` (if set, needed to change settings),
 and first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (ignored once `config.json` exists).
 
 ## API
 
-| Endpoint                  | Purpose                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------ |
-| `GET /api/stream`         | Server-Sent Events: `hello`, then `aircraft` every second, `config` on change  |
-| `GET /api/aircraft`       | enriched aircraft in range, nearest first (`?trails` for position history)     |
-| `GET /api/config` / `PUT` | read / update settings (PUT accepts partial objects; 400 lists invalid fields) |
-| `GET /api/status`         | receiver feed, databases, lookup caches, connected displays                    |
-| `POST /api/source/test`   | try a source config once, without saving it                                    |
+| Endpoint                       | Purpose                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| `GET /api/stream`              | Server-Sent Events: `hello`, then `aircraft` every second, `config` on change  |
+| `GET /api/aircraft`            | enriched aircraft in range, nearest first (`?trails` for position history)     |
+| `GET /api/aircraft/:hex/track` | the flight since take-off (adsb.lol) for an aircraft being tracked             |
+| `GET /api/config` / `PUT`      | read / update settings (PUT accepts partial objects; 400 lists invalid fields) |
+| `GET /api/status`              | receiver feed, databases, lookup caches, connected displays                    |
+| `POST /api/source/test`        | try a source config once, without saving it                                    |
 
 ## Development
 

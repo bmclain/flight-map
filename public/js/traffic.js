@@ -80,7 +80,7 @@ const speed = (kt) => joinUnit(formatSpeed(kt, units));
 const plural = (n, one, many = `${one}s`) => `${nf.format(n)} ${n === 1 ? one : many}`;
 
 function flightName(v) {
-  return v.callsign || v.reg || v.hex.toUpperCase();
+  return v.flight || v.callsign || v.reg || v.hex.toUpperCase();
 }
 function flightDesc(v) {
   const bits = [];
@@ -466,6 +466,7 @@ function renderLog() {
     ? all.filter((v) =>
         [
           v.callsign,
+          v.flight,
           v.reg,
           v.hex,
           v.type,
@@ -503,7 +504,12 @@ function renderLog() {
             ? `${alt(v.minAltFt)}–${alt(v.maxAltFt)}`
             : alt(v.maxAltFt)
           : '—';
-      return `<tr><td>${esc(timeOf(v.first))}</td><td><strong>${esc(flightName(v))}</strong>${v.callsign && v.reg ? ` <span class="muted">${esc(v.reg)}</span>` : ''}${flags}</td><td>${esc(v.typeName ?? v.type ?? '')}</td><td>${esc(v.airline?.name ?? '')}</td><td>${esc(routeText(v))}</td><td class="num">${v.minKm != null ? dist(v.minKm) : '—'}</td><td class="num">${altRange}</td></tr>`;
+      // After the flight code: the callsign, then the registration.
+      const also = [v.flight ? v.callsign : null, v.callsign ? v.reg : null]
+        .filter(Boolean)
+        .map((x) => ` <span class="muted">${esc(x)}</span>`)
+        .join('');
+      return `<tr><td>${esc(timeOf(v.first))}</td><td><strong>${esc(flightName(v))}</strong>${also}${flags}</td><td>${esc(v.typeName ?? v.type ?? '')}</td><td>${esc(v.airline?.name ?? '')}</td><td>${esc(routeText(v))}</td><td class="num">${v.minKm != null ? dist(v.minKm) : '—'}</td><td class="num">${altRange}</td></tr>`;
     })
     .join('');
   const more =

@@ -4,6 +4,9 @@ import { AircraftDb, ensureDbFile, readJsonMaybeGzip } from './tar1090db.js';
 import { TypeDb } from './types.js';
 import { RouteResolver } from './routes.js';
 import { PhotoResolver } from './photos.js';
+import { FlightTracks } from './flighttrack.js';
+import { AirlineDirectory } from './airlines.js';
+import { callsignAirline, flightCode, knownAirline } from '../../shared/airlines.js';
 import { classifySpecial } from '../special.js';
 
 const DB_REFRESH_MS = 24 * 3600_000;
@@ -68,12 +71,15 @@ export class Enricher {
       fetchImpl,
     });
     this.photos = new PhotoResolver({ dataDir, getConfig, log, fetchImpl });
+    this.flightTracks = new FlightTracks({ getConfig, log, fetchImpl });
+    this.airlines = new AirlineDirectory({ cacheFile: path.join(dataDir, 'cache', 'airlines.json'), log, fetchImpl });
     this.dbState = { types: 0, operators: 0, aircraft: 0, loading: false, lastError: null };
     this.timers = [];
   }
 
   async init({ loadDatabases = true } = {}) {
     await this.routes.load();
+    await this.airlines.load();
     await this.photos.init();
     if (loadDatabases) {
       this.loadDatabases();
@@ -116,12 +122,20 @@ export class Enricher {
     }
   }
 
-  /** Airline for an ICAO-style callsign ("UAL1234" → United Airlines). */
+  /**
+   * Airline for an ICAO-style callsign: "WJA347" → WestJet, which sells its
+   * flights as WS. `brand` is set for airlines in shared/airlines.js.
+   */
   airline(callsign) {
-    const m = /^([A-Z]{3})\d/.exec(callsign ?? '');
-    if (!m) return null;
-    const op = this.operators[m[1]];
-    return op ? { icao: m[1], name: cleanAirlineName(op.n), country: op.c ?? null, iata: null } : null;
+    const icao = callsignAirline(callsign);
+    if (!icao) return null;
+    const op = this.operators[icao];
+    const known = knownAirline(icao);
+    if (known) return { icao, name: known.name, country: op?.c ?? null, iata: known.iata, brand: known.brand };
+    if (!op) return null;
+    const opName = cleanAirlineName(op.n);
+    const listed = this.airlines.get(icao, opName);
+    return { icao, name: listed?.name ?? opName, country: op.c ?? null, iata: listed?.iata ?? null, brand: null };
   }
 
   /**
@@ -135,7 +149,7 @@ export class Enricher {
     const typeCode = ac.type ?? db?.type ?? null;
     const typeInfo = this.types.describe(typeCode, ac.desc ?? db?.desc ?? null, ac.category);
     const { status: routeStatus, route } = this.routes.get(ac.callsign, ac, { lookup });
-    const airline = route?.airline?.name ? route.airline : this.airline(ac.callsign);
+    const airline = this.airline(ac.callsign) ?? (route?.airline?.name ? route.airline : null);
     const photo = lookup ? this.photos.get({ hex: ac.hex, reg, typeInfo }) : null;
     const military = ac.military || !!db?.military;
     const special = classifySpecial(
@@ -147,6 +161,9 @@ export class Enricher {
       reg,
       typeInfo,
       airline,
+      // The flight number as the airline sells it ("WS347"), when the callsign maps onto one.
+      // Military, police, ambulance… callsigns aren't flights anyone books.
+      flight: military || special ? null : (flightCode(ac.callsign, airline?.iata) ?? route?.flightIata ?? null),
       military,
       special,
       cargo: isCargoOperator(airline?.icao ?? /^([A-Z]{3})\d/.exec(ac.callsign ?? '')?.[1], airline?.name),
@@ -158,7 +175,7 @@ export class Enricher {
 
   async saveCaches() {
     try {
-      await Promise.all([this.routes.save(), this.photos.save()]);
+      await Promise.all([this.routes.save(), this.photos.save(), this.airlines.save()]);
     } catch (err) {
       this.log.warn(`cache save failed: ${err.message}`);
     }
@@ -175,6 +192,7 @@ export class Enricher {
       databases: { ...this.dbState },
       routes: this.routes.status(),
       photos: this.photos.status(),
+      flightTracks: this.flightTracks.status(),
     };
   }
 }

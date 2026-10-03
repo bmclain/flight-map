@@ -48,7 +48,8 @@ export const DEFAULT_CONFIG = {
     // see shared/tiles.js for each provider's styles).
     dayStyle: '',
     nightStyle: '',
-    trailMinutes: 5,
+    // How much of each plane's track to draw on the map (0 = none).
+    trailMinutes: 30,
     labels: true,
     // Small map of the flight's route on each aircraft card.
     miniMap: true,
@@ -60,6 +61,8 @@ export const DEFAULT_CONFIG = {
     // accepted but its route API currently answers with an empty body.
     routeProviders: ['adsbim', 'adsbdb'],
     hideImplausibleRoutes: true,
+    // The whole flight so far (from take-off) on the card's mini map, from adsb.lol.
+    flightTracks: true,
     // 'airframe' = photo of the exact plane (planespotters.net), falling back to the type photo
     // 'type'     = one consistent photo per aircraft type (Wikipedia / your own library)
     // 'off'      = silhouettes only
@@ -167,7 +170,7 @@ const SCHEMA = {
     customTileUrl: str(500),
     dayStyle: str(40),
     nightStyle: str(40),
-    trailMinutes: num(0, 60),
+    trailMinutes: num(0, 180),
     labels: bool(),
     miniMap: bool(),
   },
@@ -176,6 +179,7 @@ const SCHEMA = {
     routes: bool(),
     routeProviders: subsetOf(['adsbim', 'adsblol', 'adsbdb']),
     hideImplausibleRoutes: bool(),
+    flightTracks: bool(),
     photoMode: oneOf(['airframe', 'type', 'off']),
   },
   special: {

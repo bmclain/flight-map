@@ -1,12 +1,23 @@
-// Keeps the latest state of every aircraft heard, their recent trails, and
-// builds the enriched list that is pushed to the displays.
+// Keeps the latest state of every aircraft heard and the track each has flown
+// since we first heard it, and builds the enriched list that is pushed to the
+// displays.
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { bearingDeg, distanceM, elevationDeg, M_PER_FT } from '../shared/geo.js';
+import { addTrackPoint } from '../shared/track.js';
 
 const MAX_POSITION_AGE_S = 60;
 const FORGET_AFTER_MS = 90_000;
-const TRAIL_STEP_MS = 4000;
+// Tracks saved at shutdown are picked up again if the server is back this soon.
+const RESTORE_WITHIN_MS = 10 * 60_000;
 
 const round = (v, d) => (v == null ? null : Math.round(v * 10 ** d) / 10 ** d);
+
+/** Altitude for a track point: 0 on the ground, to the nearest 25 ft. */
+const trackAltFt = (ac) => {
+  const ft = ac.onGround ? 0 : (ac.altFt ?? ac.altGeomFt);
+  return ft == null ? null : Math.round(ft / 25) * 25;
+};
 
 export class Tracker {
   constructor({ getConfig, enricher = null }) {
@@ -15,25 +26,23 @@ export class Tracker {
     this.planes = new Map();
     this.lastUpdate = null;
     this.wanted = new Map(); // hex → expiry: someone tapped it, look it up even if far away
+    this.restored = new Map(); // hex → { firstSeen, trail } saved before a restart
   }
 
   ingest({ aircraft }, now = Date.now()) {
-    const trailMs = Math.max(1, this.getConfig().map.trailMinutes) * 60_000;
     const seenNow = new Set();
     for (const ac of aircraft) {
       seenNow.add(ac.hex);
       let s = this.planes.get(ac.hex);
       if (!s) {
-        s = { firstSeen: now, trail: [] };
+        s = this.restored.get(ac.hex) ?? { firstSeen: now, trail: [] };
+        this.restored.delete(ac.hex);
         this.planes.set(ac.hex, s);
       }
       s.ac = ac;
       s.lastSeen = now - ac.seen * 1000;
       if (ac.lat != null && ac.seenPos != null && ac.seenPos < MAX_POSITION_AGE_S) {
-        const t = now - ac.seenPos * 1000;
-        const last = s.trail[s.trail.length - 1];
-        if (!last || t - last[2] >= TRAIL_STEP_MS) s.trail.push([round(ac.lat, 5), round(ac.lon, 5), t]);
-        while (s.trail.length && now - s.trail[0][2] > trailMs) s.trail.shift();
+        addTrackPoint(s.trail, round(ac.lat, 5), round(ac.lon, 5), now - ac.seenPos * 1000, trackAltFt(ac));
       }
     }
     for (const [hex, s] of this.planes) {
@@ -45,6 +54,31 @@ export class Tracker {
   /** Forget every aircraft, e.g. when the data source changes. */
   clear() {
     this.planes.clear();
+    this.restored.clear();
+  }
+
+  /** Save every aircraft's track, so a restart doesn't wipe the trails off the map. */
+  async saveTracks(file, now = Date.now()) {
+    const planes = [...this.planes].map(([hex, s]) => [hex, s.firstSeen, s.trail]);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(`${file}.tmp`, JSON.stringify({ savedAt: now, planes }));
+    await fs.rename(`${file}.tmp`, file);
+  }
+
+  /** Pick up tracks saved by saveTracks(), if they are recent enough to still be useful. */
+  async loadTracks(file, now = Date.now()) {
+    let saved;
+    try {
+      saved = JSON.parse(await fs.readFile(file, 'utf8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') return 0;
+      throw err;
+    }
+    if (!(now - saved.savedAt < RESTORE_WITHIN_MS)) return 0;
+    for (const [hex, firstSeen, trail] of saved.planes) this.restored.set(hex, { firstSeen, trail });
+    // Aircraft that don't turn up again soon have flown off.
+    setTimeout(() => this.restored.clear(), FORGET_AFTER_MS).unref?.();
+    return this.restored.size;
   }
 
   /**
@@ -100,7 +134,7 @@ export class Tracker {
         firstSeen: s.firstSeen,
         ...extra,
       };
-      if (trails) item.trail = s.trail.map(([lat, lon, t]) => [lat, lon, t]);
+      if (trails) item.trail = s.trail.map((p) => p.slice());
       out.push(item);
     }
     out.sort((a, b) => a.distanceKm - b.distanceKm);

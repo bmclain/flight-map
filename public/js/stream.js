@@ -1,8 +1,8 @@
 // Live connection to the server (Server-Sent Events). Keeps the latest config,
-// aircraft list and per-aircraft trails, and emits 'config' / 'aircraft' events.
-import { distanceM } from '/shared/geo.js';
-
-const TRAIL_STEP_MS = 4000;
+// aircraft list and each aircraft's track (the server sends what it has
+// on connecting, so trails show straight away), and emits 'config' /
+// 'aircraft' events.
+import { addTrackPoint } from '/shared/track.js';
 
 export class LiveData extends EventTarget {
   constructor(url = '/api/stream') {
@@ -16,6 +16,13 @@ export class LiveData extends EventTarget {
     this.lastMessageAt = 0;
     this.connected = false;
     this.bootId = null;
+    // Server clock minus ours: track times are the server's.
+    this.clockOffset = 0;
+  }
+
+  /** The time now by the server's clock. */
+  now() {
+    return Date.now() + this.clockOffset;
   }
 
   get ready() {
@@ -61,8 +68,9 @@ export class LiveData extends EventTarget {
     this.dispatchEvent(new Event('config'));
   }
 
-  #setAircraft({ aircraft, status }) {
+  #setAircraft({ aircraft, status, serverTime }) {
     this.lastMessageAt = Date.now();
+    if (Number.isFinite(serverTime)) this.clockOffset = serverTime - this.lastMessageAt;
     this.status = status ?? this.status;
     this.aircraft = aircraft;
     this.byHex = new Map(aircraft.map((a) => [a.hex, a]));
@@ -71,19 +79,14 @@ export class LiveData extends EventTarget {
   }
 
   #updateTrails() {
-    const now = Date.now();
-    const keepMs = Math.max(1, this.config?.map?.trailMinutes ?? 5) * 60_000;
+    const now = this.now();
     for (const ac of this.aircraft) {
       let trail = this.trails.get(ac.hex);
       if (!trail) {
         trail = [];
         this.trails.set(ac.hex, trail);
       }
-      const last = trail[trail.length - 1];
-      if (!last || (now - last[2] >= TRAIL_STEP_MS && distanceM(last[0], last[1], ac.lat, ac.lon) > 20)) {
-        trail.push([ac.lat, ac.lon, now]);
-      }
-      while (trail.length && now - trail[0][2] > keepMs) trail.shift();
+      addTrackPoint(trail, ac.lat, ac.lon, now, ac.onGround ? 0 : (ac.altFt ?? ac.altGeomFt ?? null));
     }
     for (const hex of this.trails.keys()) {
       if (!this.byHex.has(hex)) this.trails.delete(hex);

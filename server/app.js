@@ -1,6 +1,7 @@
 // Wires together config, the aircraft source, the tracker, enrichment and
 // the live stream to displays.
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { ConfigStore } from './config.js';
 import { Tracker } from './tracker.js';
 import { TrafficLog } from './traffic.js';
@@ -21,6 +22,7 @@ export class App {
     this.enricher = new Enricher({ dataDir, getConfig: this.getConfig, log, fetchImpl });
     this.tracker = new Tracker({ getConfig: this.getConfig, enricher: this.enricher });
     this.traffic = new TrafficLog({ dataDir, getConfig: this.getConfig, log });
+    this.tracksFile = path.join(dataDir, 'cache', 'tracks.json');
     this.clients = new Set();
     this.source = null;
     this.startedAt = Date.now();
@@ -32,9 +34,19 @@ export class App {
     await this.configStore.load();
     await this.enricher.init({ loadDatabases });
     await this.traffic.start();
+    try {
+      const n = await this.tracker.loadTracks(this.tracksFile);
+      if (n) this.log.info(`tracks: picked up ${n} aircraft tracks from before the restart`);
+    } catch (err) {
+      this.log.warn(`tracks: ${err.message}`);
+    }
     this.#startSource();
     this.configStore.onChange((next, prev) => {
-      if (JSON.stringify(next.source) !== JSON.stringify(prev.source)) this.#startSource();
+      if (JSON.stringify(next.source) !== JSON.stringify(prev.source)) {
+        // Don't carry planes over from the old source (simulated ones in particular).
+        this.tracker.clear();
+        this.#startSource();
+      }
       if (next.enrichment.aircraftDb && !prev.enrichment.aircraftDb) this.enricher.loadDatabases();
       this.broadcast('config', { config: next });
     });
@@ -47,6 +59,7 @@ export class App {
     clearInterval(this.keepAliveTimer);
     this.source?.stop();
     await this.traffic.stop();
+    await this.tracker.saveTracks(this.tracksFile).catch((err) => this.log.warn(`tracks: ${err.message}`));
     for (const res of this.clients) res.end();
     this.clients.clear();
     await this.enricher.shutdown();
@@ -81,8 +94,6 @@ export class App {
 
   #startSource() {
     this.source?.stop();
-    // Don't carry planes over from the old source (simulated ones in particular).
-    this.tracker.clear();
     const cfg = this.getConfig().source;
     this.source = this.createSource(cfg, (data) => this.tracker.ingest(data));
     this.enricher.routes.override = this.source.lookupRoute ? (cs) => this.source.lookupRoute(cs) : null;

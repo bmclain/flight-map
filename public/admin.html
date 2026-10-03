@@ -207,7 +207,11 @@
             >Map range (<span data-unit="distance"></span>)
             <input type="number" min="1" step="1" data-path="map.rangeKm" data-kind="distance" />
           </label>
-          <label>Trails (minutes) <input type="number" min="0" max="60" step="1" data-path="map.trailMinutes" /></label>
+          <label
+            >Trails (minutes) <input type="number" min="0" max="180" step="1" data-path="map.trailMinutes" /><small
+              >How much of each plane's path to draw. 0 = none</small
+            ></label
+          >
         </div>
         <div class="row-2">
           <label
@@ -355,6 +359,10 @@
             the plane actually is</label
           >
         </div>
+        <label class="check"
+          ><input type="checkbox" data-path="enrichment.flightTracks" /> Show the whole flight since take-off on the
+          mini map (from adsb.lol)</label
+        >
         <label class="check"
           ><input type="checkbox" data-path="enrichment.aircraftDb" /> Use the tar1090 aircraft database for types &amp;
           registrations</label

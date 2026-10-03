@@ -164,6 +164,13 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
       const lookup = /^\/api\/aircraft\/([0-9a-f]{6})\/lookup$/.exec(pathname);
       if (lookup && req.method === 'POST') return sendJson(res, app.tracker.want(lookup[1]) ? 202 : 404, {});
 
+      // The whole flight so far (adsb.lol), for aircraft we're tracking.
+      const track = /^\/api\/aircraft\/([0-9a-f]{6})\/track$/.exec(pathname);
+      if (track && req.method === 'GET') {
+        if (!app.tracker.planes.has(track[1])) return sendJson(res, 404, { error: 'Not tracking that aircraft' });
+        return sendJson(res, 200, { track: await app.enricher.flightTracks.get(track[1]) });
+      }
+
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
 
       if (pathname === '/') {

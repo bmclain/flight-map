@@ -81,6 +81,7 @@ export function airportMovement(v, apt) {
 const visitBrief = (v, extra) => ({
   hex: v.hex,
   callsign: v.callsign ?? null,
+  flight: v.flight ?? null,
   reg: v.reg ?? null,
   type: v.type ?? null,
   typeName: v.typeName ?? null,
@@ -302,6 +303,7 @@ export class TrafficLog {
   #update(v, ac, cycleKm, now) {
     v.last = now;
     v.callsign ??= ac.callsign ?? null;
+    v.flight ??= ac.flight ?? null;
     v.reg ??= ac.reg ?? null;
     if (ac.typeInfo) {
       v.type ??= ac.typeInfo.code ?? null;

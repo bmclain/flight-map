@@ -36,6 +36,8 @@ export class Cycler {
     this.history = [];
     this.cardsSinceMap = 0;
     this.pinned = null;
+    // The Map button keeps the map up until it's pressed again (or a card is asked for).
+    this.mapHeld = false;
   }
 
   /**
@@ -57,6 +59,10 @@ export class Cycler {
       }
       this.pinned = null;
     }
+    if (this.mapHeld) {
+      if (v?.kind !== 'map') this.view = { kind: 'map', start: now, end: Infinity };
+      return this.view;
+    }
 
     let advance = !v || now >= v.end;
     if (v?.kind === 'card') {
@@ -72,6 +78,7 @@ export class Cycler {
   /** Show a specific aircraft now (e.g. tapped on the map), then carry on cycling. */
   show(hex, now, ctx) {
     this.pinned = null;
+    this.mapHeld = false;
     this.view = { kind: 'card', hex, start: now, end: now + ctx.cycleMs, manual: true };
     this.lastShown.set(hex, now);
     if (this.history[this.history.length - 1] !== hex) this.history.push(hex);
@@ -82,12 +89,14 @@ export class Cycler {
   /** Skip to the next item immediately (also releases a pin). */
   next(now, ctx) {
     this.pinned = null;
+    this.mapHeld = false;
     return this.#advance(now, ctx, { skipMap: true });
   }
 
   /** Go back to the previously shown aircraft that is still in range. */
   prev(now, ctx) {
     this.pinned = null;
+    this.mapHeld = false;
     const present = new Set(ctx.pool.map((a) => a.hex));
     const current = this.view?.kind === 'card' ? this.view.hex : null;
     // history ends with the current aircraft; walk backwards past it
@@ -106,7 +115,22 @@ export class Cycler {
   /** Hold the display on one aircraft until it leaves or is released. */
   pin(hex, now) {
     this.pinned = hex;
+    this.mapHeld = false;
     this.view = { kind: 'card', hex, start: now, end: Infinity };
+  }
+
+  /** Keep the map on screen until releaseMap() (or next / previous / a card). */
+  holdMap(now) {
+    this.pinned = null;
+    this.mapHeld = true;
+    this.cardsSinceMap = 0;
+    this.view = { kind: 'map', start: now, end: Infinity };
+  }
+
+  /** Let the cards carry on from the map. */
+  releaseMap(now) {
+    this.mapHeld = false;
+    if (this.view?.kind === 'map') this.view = { ...this.view, end: now };
   }
 
   unpin(now, cycleMs) {

@@ -45,6 +45,8 @@ export const DEFAULT_CONFIG = {
     customTileUrl: '',
     trailMinutes: 5,
     labels: true,
+    // Small map of the flight's route on each aircraft card.
+    miniMap: true,
   },
   enrichment: {
     aircraftDb: true,
@@ -123,6 +125,7 @@ const SCHEMA = {
     customTileUrl: str(500),
     trailMinutes: num(0, 60),
     labels: bool(),
+    miniMap: bool(),
   },
   enrichment: {
     aircraftDb: bool(),

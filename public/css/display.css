@@ -307,6 +307,86 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   opacity: 1;
 }
 
+/* mini map of the flight, inset in the corner of the photo */
+
+.minimap {
+  position: absolute;
+  left: 1.6cqmin;
+  bottom: 1.6cqmin;
+  width: 44%;
+  height: 52%;
+  z-index: 2;
+  border-radius: 1.8cqmin;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow: 0 0.6cqmin 2.4cqmin rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.minimap[hidden] {
+  display: none;
+}
+.minimap .mm-map {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+.minimap .mm-map.osm-dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+}
+.minimap .mm-attrib {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 500;
+  max-width: 100%;
+  padding: 0 0.6em;
+  font-size: 8px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.minimap .mm-attrib:empty {
+  display: none;
+}
+.mm-plane {
+  background: none;
+  border: none;
+}
+.mm-plane .glyph {
+  position: absolute;
+  inset: 0;
+  transition: transform 1s linear;
+}
+.mm-plane svg {
+  width: 100%;
+  height: 100%;
+  fill: var(--accent);
+  stroke: var(--bg);
+  stroke-width: 4;
+  paint-order: stroke;
+  overflow: visible;
+}
+.mm-ap span {
+  position: absolute;
+  translate: -50% 0;
+  margin-top: 0.7em;
+  padding: 0 0.35em;
+  border-radius: 0.4em;
+  font-size: max(10px, 2cqmin);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  white-space: nowrap;
+}
+/* The photo credit sits bottom right; keep it clear of the inset. */
+.photo:has(.minimap:not([hidden])) figcaption {
+  max-width: 54%;
+}
+
 /* route */
 
 .route {

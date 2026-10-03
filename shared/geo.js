@@ -104,3 +104,34 @@ export function routeDetourM(a, b, p) {
     distanceM(a.lat, a.lon, b.lat, b.lon)
   );
 }
+
+/**
+ * Points along the great circle from a to b (inclusive), for drawing a route.
+ * Longitudes are "unwrapped" so consecutive points never jump by more than
+ * 180°, which keeps a line across the antimeridian from streaking round the map.
+ * @returns {[number, number][]} [lat, lon] pairs
+ */
+export function greatCirclePoints(a, b, segments = 64) {
+  const p1 = toRad(a.lat);
+  const l1 = toRad(a.lon);
+  const p2 = toRad(b.lat);
+  const l2 = toRad(b.lon);
+  const d = distanceM(a.lat, a.lon, b.lat, b.lon) / EARTH_RADIUS_M;
+  if (d < 1e-9) return [[a.lat, a.lon]];
+  const out = [];
+  let prevLon = a.lon;
+  for (let i = 0; i <= segments; i++) {
+    const f = i / segments;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+    const y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+    const z = A * Math.sin(p1) + B * Math.sin(p2);
+    const lat = toDeg(Math.atan2(z, Math.hypot(x, y)));
+    let lon = toDeg(Math.atan2(y, x));
+    lon += Math.round((prevLon - lon) / 360) * 360;
+    prevLon = lon;
+    out.push([lat, lon]);
+  }
+  return out;
+}

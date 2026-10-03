@@ -6,6 +6,7 @@ import {
   destinationPoint,
   distanceM,
   elevationDeg,
+  greatCirclePoints,
   normalizeDeg,
   relativeBearing,
   routeDetourM,
@@ -121,4 +122,25 @@ test('estimated take-off, landing and duration', () => {
   assert.equal(formatDuration(95), '1 h 35 min');
   assert.equal(formatDuration(40), '40 min');
   assert.equal(formatDuration(120), '2 h');
+});
+
+test('great-circle points run from end to end along the route', () => {
+  const sea = { lat: 47.4502, lon: -122.3088 };
+  const jfk = { lat: 40.6413, lon: -73.7781 };
+  const pts = greatCirclePoints(sea, jfk, 32);
+  assert.equal(pts.length, 33);
+  near(pts[0][0], sea.lat, 1e-6);
+  near(pts[0][1], sea.lon, 1e-6);
+  near(pts[32][0], jfk.lat, 1e-6);
+  near(pts[32][1], jfk.lon, 1e-6);
+  // Every point lies on the route: no detour.
+  for (const [lat, lon] of pts) near(routeDetourM(sea, jfk, { lat, lon }), 0, 50);
+  // The great circle bows north of the straight line on a Mercator map.
+  assert.ok(pts[16][0] > (sea.lat + jfk.lat) / 2);
+});
+
+test('great-circle points across the antimeridian stay continuous', () => {
+  const pts = greatCirclePoints({ lat: 35.55, lon: 139.78 }, { lat: 37.62, lon: -122.38 }, 40);
+  for (let i = 1; i < pts.length; i++) assert.ok(Math.abs(pts[i][1] - pts[i - 1][1]) < 20);
+  near(pts.at(-1)[1], -122.38 + 360, 1e-6);
 });

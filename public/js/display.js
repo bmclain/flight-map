@@ -11,6 +11,7 @@ import { estimateFlightTimes, formatDuration } from '/shared/flighttimes.js';
 import { silhouettePaths, silhouetteSvg } from './icons.js';
 import { LiveData } from './stream.js';
 import { MapView } from './map.js';
+import { MiniMap } from './minimap.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) =>
@@ -58,6 +59,8 @@ const mapView = new MapView({
   attribution: $('map-attrib'),
   onSelect: (hex) => act('show', hex),
 });
+
+const miniMap = new MiniMap({ wrap: $('c-minimap'), el: $('c-minimap-map'), attribution: $('c-minimap-attrib') });
 
 // ---- helpers ----------------------------------------------------------------------
 
@@ -130,6 +133,13 @@ function applyTheme() {
 function configureMap() {
   if (!eff) return;
   mapView.configure({ ...eff, units: unitsName(), theme });
+  miniMap.configure({
+    receiver: eff.receiver,
+    display: eff.display,
+    map: eff.map,
+    theme,
+    enabled: eff.map.miniMap !== false,
+  });
 }
 
 // ---- card ----------------------------------------------------------------------------
@@ -162,6 +172,7 @@ function renderCard(ac, ctx) {
   renderPhoto(ac);
   renderRoute(ac);
   renderLive(ac);
+  miniMap.show(ac, live.trails.get(ac.hex));
 }
 
 function renderPhoto(ac) {
@@ -575,4 +586,4 @@ setInterval(tick, 250);
 setInterval(applyTheme, 60_000);
 
 // for debugging from the console
-window.flightMap = { live, cycler, mapView, act };
+window.flightMap = { live, cycler, mapView, miniMap, act };

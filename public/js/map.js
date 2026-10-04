@@ -1,6 +1,9 @@
-// Map overview (Leaflet). Non-interactive: it is meant to be glanced at.
+// Map overview (Leaflet). Meant to be glanced at, but you can pinch or scroll
+// to zoom and drag to look around; it goes back to the usual view with
+// Re-centre, or after a minute untouched.
 // With orientation 'facing-up' the whole map is rotated so that the top of the
-// screen is the direction you face while looking at it.
+// screen is the direction you face while looking at it; Leaflet doesn't know
+// about the rotation, so then the map zooms about its centre and can't be dragged.
 import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 import { destinationPoint } from '/shared/geo.js';
 import { formatAltitude, formatDistance, formatSpeed, joinUnit, unitSystem } from '/shared/units.js';
@@ -28,6 +31,89 @@ const TRAIL_STYLE = {
   cycle: { weight: 3.5, opacity: 1 },
   far: { weight: 2.5, opacity: 0.85 },
 };
+
+// After this long without a touch, a map someone has zoomed or moved goes back to the usual view.
+const USER_VIEW_MS = 60_000;
+
+// Pinch zoom. Leaflet's is one-to-one (fingers twice as far apart = one zoom
+// level, 2× closer), which takes pinch after pinch on a big tablet screen; this
+// zooms PINCH_GAIN times as many levels (fingers twice as far apart = 32×
+// closer, the usual view to street level in one pinch), still keeping the spot
+// between your fingers under them, and a quick pinch carries on when you let go.
+const PINCH_GAIN = 5;
+const PINCH_FLING_MS = 250; // momentum: zoom speed at release × this
+const PINCH_FLING_MAX = 2; // zoom levels
+
+const QuickPinch = L.Map.TouchZoom.extend({
+  _onTouchMove(e) {
+    if (!e.touches || e.touches.length !== 2 || !this._zooming) return;
+    const map = this._map;
+    const p1 = map.mouseEventToContainerPoint(e.touches[0]);
+    const p2 = map.mouseEventToContainerPoint(e.touches[1]);
+    const scale = p1.distanceTo(p2) / this._startDist;
+    const zoom = this._startZoom + PINCH_GAIN * Math.log2(scale);
+    this._zoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), zoom));
+    // Recent zoom levels, for the momentum when the fingers lift.
+    const now = performance.now();
+    this._samples = (this._samples ?? []).filter((s) => now - s.t < 100);
+    this._samples.push({ t: now, zoom: this._zoom });
+    if (map.options.touchZoom === 'center') {
+      this._center = this._startLatLng;
+      if (scale === 1) return;
+    } else {
+      // Keep the spot that was between the fingers under them as they move.
+      this._delta = p1._add(p2)._divideBy(2)._subtract(this._centerPoint);
+      if (scale === 1 && this._delta.x === 0 && this._delta.y === 0) return;
+      this._center = this._centerFor(this._zoom);
+    }
+    if (!this._moved) {
+      map._moveStart(true, false);
+      this._moved = true;
+    }
+    L.Util.cancelAnimFrame(this._animRequest);
+    this._animRequest = L.Util.requestAnimFrame(
+      () => map._move(this._center, this._zoom, { pinch: true, round: false }),
+      this,
+      true,
+    );
+    L.DomEvent.preventDefault(e);
+  },
+
+  _onTouchEnd() {
+    if (!this._moved || !this._zooming) {
+      this._zooming = false;
+      this._samples = [];
+      return;
+    }
+    this._zooming = false;
+    L.Util.cancelAnimFrame(this._animRequest);
+    L.DomEvent.off(document, 'touchmove', this._onTouchMove, this);
+    L.DomEvent.off(document, 'touchend touchcancel', this._onTouchEnd, this);
+    const map = this._map;
+    // Momentum: carry on in the direction the pinch was going, a little.
+    const s = this._samples ?? [];
+    this._samples = [];
+    if (s.length > 1 && s[s.length - 1].t > s[0].t) {
+      const speed = (s[s.length - 1].zoom - s[0].zoom) / (s[s.length - 1].t - s[0].t);
+      const extra = Math.max(-PINCH_FLING_MAX, Math.min(PINCH_FLING_MAX, speed * PINCH_FLING_MS));
+      if (Math.abs(extra) > 0.05) {
+        this._zoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), this._zoom + extra));
+        if (map.options.touchZoom !== 'center' && this._delta) this._center = this._centerFor(this._zoom);
+      }
+    }
+    if (map.options.zoomAnimation) {
+      map._animateZoom(this._center, map._limitZoom(this._zoom), true, map.options.zoomSnap);
+    } else {
+      map._resetView(this._center, map._limitZoom(this._zoom));
+    }
+  },
+
+  /** The map centre at `zoom` that keeps the pinch's starting spot under the fingers. */
+  _centerFor(zoom) {
+    const map = this._map;
+    return map.unproject(map.project(this._pinchStartLatLng, zoom).subtract(this._delta), zoom);
+  },
+});
 
 // Plane icons are sized by the aircraft: a fraction of the screen's shorter
 // side for a typical narrow-body airliner, scaled per size class below.
@@ -61,6 +147,100 @@ function sizeScale(typeInfo) {
   }
 }
 
+// Mouse wheel and trackpad zoom, continuous like Google Maps. A trackpad pinch
+// reaches the page as a stream of small ctrl+wheel events (Safari sends
+// gesture events instead); Leaflet's own wheel zoom handles them in 40 ms
+// batches and drops any that arrive during its 250 ms zoom animation, so most
+// of a pinch was lost. Here a pinch follows the fingers frame by frame and a
+// mouse-wheel notch glides, both zooming about the pointer.
+const WHEEL_PINCH_RATE = 1 / 18; // zoom levels per pixel of ctrl+wheel (trackpad pinch)
+const WHEEL_SCROLL_RATE = 1 / 50; // …and of plain wheel (a mouse notch is ~100 px: two levels)
+const GESTURE_GAIN = 5; // Safari pinch: zoom levels per doubling of the pinch (as on the tablet)
+const WHEEL_EASE = 0.3; // share of the remaining zoom a wheel notch covers each frame
+const WHEEL_END_MS = 150; // no more input for this long ends the zoom
+
+const SmoothWheelZoom = L.Handler.extend({
+  addHooks() {
+    L.DomEvent.on(this._map._container, 'wheel', this._onWheel, this);
+    L.DomEvent.on(this._map._container, 'gesturestart gesturechange gestureend', this._onGesture, this);
+  },
+
+  removeHooks() {
+    L.DomEvent.off(this._map._container, 'wheel', this._onWheel, this);
+    L.DomEvent.off(this._map._container, 'gesturestart gesturechange gestureend', this._onGesture, this);
+  },
+
+  _onWheel(e) {
+    L.DomEvent.stop(e); // ctrl+wheel would otherwise zoom the whole page
+    const px = e.deltaY * (e.deltaMode === 1 ? 20 : e.deltaMode === 2 ? 60 : 1);
+    if (!px) return;
+    const rate = e.ctrlKey ? WHEEL_PINCH_RATE : WHEEL_SCROLL_RATE;
+    this._zoomTo(this._target() - px * rate, e, e.ctrlKey);
+  },
+
+  _onGesture(e) {
+    L.DomEvent.preventDefault(e);
+    if (e.type === 'gesturestart') this._gestureZoom = this._target();
+    else if (e.type === 'gesturechange' && e.scale > 0) {
+      this._zoomTo(this._gestureZoom + GESTURE_GAIN * Math.log2(e.scale), e, true);
+    }
+  },
+
+  /** Where the zoom is heading: the current target mid-gesture, else the map's zoom. */
+  _target() {
+    return this._goal ?? this._map.getZoom();
+  },
+
+  _zoomTo(zoom, e, follow) {
+    const map = this._map;
+    this._goal = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), zoom));
+    this._follow = follow;
+    const size = map.getSize();
+    const anchor = map.options.scrollWheelZoom === 'center' ? size.divideBy(2) : map.mouseEventToContainerPoint(e);
+    // The spot to keep under the pointer is measured once per gesture (or when the
+    // pointer moves): measuring it every frame lets rounding creep in.
+    if (!this._anchor || anchor.distanceTo(this._anchor) > 2) this._spot = null;
+    this._anchor = anchor;
+    this._lastInput = performance.now();
+    if (!this._frame) this._frame = L.Util.requestAnimFrame(this._step, this);
+  },
+
+  _step() {
+    this._frame = null;
+    const map = this._map;
+    // Still settling from the last zoom: carry on next frame (the input isn't lost).
+    if (map._animatingZoom) {
+      this._frame = L.Util.requestAnimFrame(this._step, this);
+      return;
+    }
+    if (!this._moving) {
+      map._stop();
+      map._moveStart(true, false);
+      this._moving = true;
+    }
+    const from = map.getZoom();
+    const done = this._follow || Math.abs(this._goal - from) < 0.01;
+    const zoom = done ? this._goal : from + (this._goal - from) * WHEEL_EASE;
+    // Keep the spot under the pointer where it is.
+    this._spot ??= map.containerPointToLatLng(this._anchor);
+    const spot = this._spot;
+    const offset = this._anchor.subtract(map.getSize().divideBy(2));
+    const center = map.unproject(map.project(spot, zoom).subtract(offset), zoom);
+    if (zoom !== from) map._move(center, zoom, { pinch: true, round: false });
+    const idle = performance.now() - this._lastInput;
+    if (!done || idle < WHEEL_END_MS) {
+      this._frame = L.Util.requestAnimFrame(this._step, this);
+      return;
+    }
+    // Settled: let the map tidy up (snap to its zoom steps, load sharper tiles).
+    this._moving = false;
+    this._goal = null;
+    this._spot = null;
+    if (map.options.zoomAnimation) map._animateZoom(center, map._limitZoom(zoom), true, map.options.zoomSnap);
+    else map._resetView(center, map._limitZoom(zoom));
+  },
+});
+
 /**
  * [lat, lon, …] points with each longitude shifted by whole turns to sit next
  * to the one after it, working back from `lon` (where the plane is now), so a
@@ -88,7 +268,20 @@ const esc = (s) =>
   );
 
 export class MapView {
-  constructor({ wrap, rotor, el, title, compass, attribution, legend, altitudeScale, onSelect }) {
+  constructor({
+    wrap,
+    rotor,
+    el,
+    title,
+    compass,
+    attribution,
+    legend,
+    altitudeScale,
+    recenter,
+    zoomIn,
+    zoomOut,
+    onSelect,
+  }) {
     this.onSelect = onSelect;
     this.legendEl = legend;
     this.altScaleEl = altitudeScale;
@@ -107,24 +300,60 @@ export class MapView {
     this.rotation = 0;
     this.settings = null;
     this.tileKey = null;
-    this.selected = null; // { hex, flight, avoidLeftPx, fitted }: a tapped plane, see select()
-    this.baseZoom = 10;
+    this.selected = null; // { hex, flight }: a tapped plane, see select()
+    // True while someone has zoomed or moved the map: it isn't re-fitted then.
+    this.userView = false;
+    this.userTimer = null;
+    this.recenterEl = recenter;
+    recenter?.addEventListener('click', () => this.recenter());
+    // The + and − buttons: one zoom level each way, about the middle of the map.
+    for (const [btn, dir] of [
+      [zoomIn, 1],
+      [zoomOut, -1],
+    ]) {
+      btn?.addEventListener('click', () => {
+        this.#userMoved();
+        if (dir > 0) this.map.zoomIn(1);
+        else this.map.zoomOut(1);
+      });
+    }
 
     this.map = L.map(el, {
       zoomControl: false,
       // Attribution is drawn outside the (possibly rotated) map, see #attrib.
       attributionControl: false,
-      dragging: false,
+      dragging: true,
+      // Pinch zoom is QuickPinch, below.
       touchZoom: false,
+      // Wheel and trackpad zoom is SmoothWheelZoom, above.
       scrollWheelZoom: false,
-      doubleClickZoom: false,
+      doubleClickZoom: true,
       boxZoom: false,
       keyboard: false,
       tap: false,
       zoomSnap: 0.05,
+      minZoom: 3,
+      maxZoom: 16,
       fadeAnimation: true,
-      zoomAnimation: false,
+      zoomAnimation: true,
     });
+    this.map.addHandler('quickPinch', QuickPinch);
+    this.map.quickPinch.enable();
+    this.map.addHandler('smoothWheel', SmoothWheelZoom);
+    this.map.smoothWheel.enable();
+    // Pinching, dragging, scrolling or double-tapping means someone is looking around.
+    const looking = () => this.#userMoved();
+    this.map.on('dragstart', looking);
+    this.map.on('dblclick', looking);
+    el.addEventListener('wheel', looking, { passive: true });
+    el.addEventListener('gesturestart', looking, { passive: true });
+    el.addEventListener(
+      'touchstart',
+      (e) => {
+        if (e.touches.length > 1) looking();
+      },
+      { passive: true },
+    );
     this.overlay = L.layerGroup().addTo(this.map);
     this.trailLayer = L.layerGroup().addTo(this.map);
     // A tapped plane's whole flight, coloured by altitude.
@@ -139,6 +368,12 @@ export class MapView {
     this.settings = s;
     this.facing = s.display.facingDeg;
     this.rotation = s.map.orientation === 'facing-up' ? -this.facing : 0;
+    // On a rotated map, dragging would go the wrong way and zooming would drift off the
+    // point under your fingers: zoom about the centre and don't drag.
+    const zoomAbout = this.rotation ? 'center' : true;
+    Object.assign(this.map.options, { touchZoom: zoomAbout, scrollWheelZoom: zoomAbout, doubleClickZoom: zoomAbout });
+    if (this.rotation) this.map.dragging.disable();
+    else this.map.dragging.enable();
     this.#setTiles(s.map, s.theme);
     this.#drawOverlay();
     this.#readColors();
@@ -287,66 +522,53 @@ export class MapView {
 
   #fit(w, h) {
     if (!this.settings || !w || !h) return;
-    // Zoomed out to a tapped plane's flight: fit that again instead (on the next update).
-    if (this.selected) {
-      this.selected.fitted = false;
-      return;
-    }
+    // Leave the view alone while someone is looking around.
+    if (this.userView) return;
     const { receiver, display, map } = this.settings;
     const rangeKm = this.fitKm ?? Math.min(map.rangeKm, display.cycleRangeKm * 3);
     const px = Math.min(w, h) * 0.92;
     const metersPerPx = (rangeKm * 2000) / px;
     const zoom = Math.log2((156543.03392 * Math.cos((receiver.lat * Math.PI) / 180)) / metersPerPx);
-    this.baseZoom = Math.max(3, Math.min(16, zoom));
-    this.map.setView([receiver.lat, receiver.lon], this.baseZoom, { animate: false });
+    this.map.setView([receiver.lat, receiver.lon], Math.max(3, Math.min(16, zoom)), { animate: false });
+  }
+
+  #userMoved() {
+    clearTimeout(this.userTimer);
+    this.userTimer = setTimeout(() => this.recenter(), USER_VIEW_MS);
+    if (this.userView) return;
+    this.userView = true;
+    if (this.recenterEl) this.recenterEl.hidden = false;
+  }
+
+  /** Back to the usual view, after someone has zoomed or moved the map. */
+  recenter() {
+    clearTimeout(this.userTimer);
+    if (!this.userView) return;
+    this.userView = false;
+    if (this.recenterEl) this.recenterEl.hidden = true;
+    this.#fit(this.wrap.clientWidth, this.wrap.clientHeight);
   }
 
   /**
    * A plane tapped on the map: fetch its whole flight since take-off (from
-   * adsb.lol, via the server), draw it in altitude colours, and zoom the map
-   * out to fit it, the way flight-tracking sites show a selected flight.
-   * null goes back to the normal view.
+   * adsb.lol, via the server) and draw it in altitude colours. The map stays
+   * where it is; zoom out to see where it came from. null clears it.
    * @param {string|null} hex
-   * @param {{ avoidLeftPx?: number }} opts  room to keep clear on the left (the pop-up)
    */
-  select(hex, { avoidLeftPx = 0 } = {}) {
+  select(hex) {
     if (hex === (this.selected?.hex ?? null)) return;
     if (!hex) {
       this.selected = null;
-      this.#fit(this.wrap.clientWidth, this.wrap.clientHeight);
       return;
     }
-    const sel = { hex, flight: null, avoidLeftPx, fitted: false };
+    const sel = { hex, flight: null };
     this.selected = sel;
     fetch(`/api/aircraft/${hex}/track`)
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null)
       .then((body) => {
-        if (this.selected !== sel) return;
-        sel.flight = body?.track?.points ?? [];
-        sel.fitted = false;
+        if (this.selected === sel) sel.flight = body?.track?.points ?? [];
       });
-  }
-
-  /** Zoom out to show a tapped plane's flight, once its flight has arrived. */
-  #fitSelected(latlngs) {
-    const sel = this.selected;
-    if (!sel || sel.flight === null || sel.fitted || latlngs.length < 2) return;
-    const w = this.wrap.clientWidth;
-    const h = this.wrap.clientHeight;
-    if (!w || !h) return;
-    sel.fitted = true;
-    const pad = Math.round(Math.min(w, h) * 0.08);
-    // Keep the flight out from under the pop-up when there's room beside it.
-    const room = sel.avoidLeftPx && w - sel.avoidLeftPx > w * 0.4 ? sel.avoidLeftPx : 0;
-    this.map.fitBounds(L.latLngBounds(latlngs), {
-      // Extra room on the right for the plane's label.
-      paddingTopLeft: [pad + room, pad + 40],
-      paddingBottomRight: [pad + 140, pad + 40],
-      // Never closer in than the normal view.
-      maxZoom: this.baseZoom,
-      animate: false,
-    });
   }
 
   /**
@@ -533,7 +755,6 @@ export class MapView {
       flight = unwrapBack([...before, ...pts], ac.lon);
       t.casing.setLatLngs(flight.map(([lat, lon]) => [lat, lon]));
       t.casing.bringToFront();
-      this.#fitSelected(flight.map(([lat, lon]) => [lat, lon]));
     }
     this.#drawAltitudeTrail(flight);
     // All the lines share one SVG, so the altitude colours have to be moved

@@ -73,6 +73,9 @@ const mapView = new MapView({
   attribution: $('map-attrib'),
   legend: $('map-legend'),
   altitudeScale: $('map-altitude'),
+  recenter: $('map-recenter'),
+  zoomIn: $('map-zoom-in'),
+  zoomOut: $('map-zoom-out'),
   onSelect: (hex) => openPopup(hex),
 });
 
@@ -478,8 +481,8 @@ function openPopup(hex) {
   popHex = hex;
   popUntil = Date.now() + POP_IDLE_MS;
   $('pop').hidden = false;
-  // Its whole flight, coloured by altitude, with the map zoomed out to fit it.
-  mapView.select(hex, { avoidLeftPx: $('pop').offsetWidth + 16 });
+  // Its whole flight, coloured by altitude.
+  mapView.select(hex);
   // Far-away aircraft aren't looked up by default; ask for its route and photo.
   fetch(`/api/aircraft/${hex}/lookup`, { method: 'POST' }).catch(() => {});
   renderPopup();
@@ -586,7 +589,10 @@ function tick() {
   const now = Date.now();
   const ctx = poolCtx(now);
   // Keep the map up while a pop-up is open on it.
-  if (popHex && cycler.view?.kind === 'map') cycler.view.end = Math.max(cycler.view.end, now + 1500);
+  // Keep the map up while a pop-up is open or someone is zooming or moving it.
+  if ((popHex || mapView.userView) && cycler.view?.kind === 'map') {
+    cycler.view.end = Math.max(cycler.view.end, now + 1500);
+  }
   const view = cycler.update(now, ctx);
 
   let kind = view.kind;
@@ -610,6 +616,8 @@ function tick() {
   if (kind === 'idle') renderIdle();
   if (kind === 'map' || kind === 'idle-map' || eff.display.layout === 'split') updateMapTitle(ctx, kind);
   if (kind !== 'card' && lastView === 'card') shownHex = null;
+  // Next time the map comes round it's back to the usual view.
+  if (kind === 'card' && eff.display.layout !== 'split') mapView.recenter();
   lastView = kind;
 
   // footer
@@ -759,27 +767,40 @@ $('controls').addEventListener('click', (e) => {
 });
 
 let down = null;
+const pointers = new Set();
 $('stage').addEventListener('pointerdown', (e) => {
-  down = { x: e.clientX, y: e.clientY, t: Date.now() };
+  pointers.add(e.pointerId);
+  // A second finger: a pinch, not a tap or a swipe.
+  if (pointers.size > 1) {
+    if (down) down.multi = true;
+    return;
+  }
+  down = { x: e.clientX, y: e.clientY, t: Date.now(), multi: false };
+});
+$('stage').addEventListener('pointercancel', (e) => {
+  pointers.delete(e.pointerId);
+  if (!pointers.size) down = null;
 });
 $('stage').addEventListener('pointerup', (e) => {
+  pointers.delete(e.pointerId);
   if (!down) return;
-  if (e.target.closest?.('#pop')) {
+  if (down.multi) {
+    if (!pointers.size) down = null;
+    return;
+  }
+  if (e.target.closest?.('#pop, #map-recenter, .map-zoom')) {
     down = null;
     return;
   }
-  // Taps on a plane in the map are handled by the map (shows that plane). In the
-  // split layout taps elsewhere on the map do nothing, so they can't skip cards.
-  const onMap = e.target.closest?.('#map-wrap');
-  // With a pop-up open, a tap elsewhere on the map just closes it.
-  if (onMap && popHex && !e.target.closest('.ac-marker')) {
+  // The map pans and zooms under your fingers, so gestures on it never skip
+  // cards. Taps on a plane are handled by the map (they open its pop-up); a tap
+  // elsewhere closes the pop-up, or brings up the controls.
+  if (e.target.closest?.('#map-wrap')) {
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 15;
     down = null;
-    closePopup();
-    return;
-  }
-  if (onMap && (e.target.closest('.ac-marker') || eff?.display.layout === 'split')) {
-    down = null;
-    flashControls();
+    if (moved) return;
+    if (popHex && !e.target.closest('.ac-marker')) closePopup();
+    else flashControls();
     return;
   }
   const dx = e.clientX - down.x;

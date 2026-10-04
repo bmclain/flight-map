@@ -761,11 +761,11 @@ body[data-theme='light'] .leaflet-tile-pane {
   pointer-events: none;
 }
 
-/* Bottom-left of the map: the summary. */
+/* Bottom-left of the map: the summary (clear of the zoom buttons on the right). */
 .map-keys {
   position: absolute;
   left: 2.4vmin;
-  right: 2.4vmin;
+  right: calc(2.4vmin + max(44px, 7vmin) + 2vmin);
   bottom: 2.4vmin;
   z-index: 500;
   display: flex;
@@ -841,6 +841,56 @@ body[data-theme='light'] .leaflet-tile-pane {
   display: flex;
   justify-content: space-between;
   margin-top: 0.3vmin;
+}
+
+/* Back to the usual view after zooming or moving the map: above the zoom
+   buttons (the top right is where alerts appear). */
+.map-recenter {
+  position: absolute;
+  right: 2.4vmin;
+  bottom: calc(2.4vmin + 14px + 2 * max(44px, 7vmin) + 1.2vmin);
+  z-index: 600;
+  height: max(40px, 6vmin);
+  padding: 0 2vmin;
+  border: none;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: 600 max(13px, 1.9vmin) var(--font-ui);
+  cursor: pointer;
+}
+.map-recenter[hidden] {
+  display: none;
+}
+
+/* Zoom in / out: bottom right, above the map credits. */
+.map-zoom {
+  position: absolute;
+  right: 2.4vmin;
+  bottom: calc(2.4vmin + 14px);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  border-radius: 99px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.25);
+}
+.map-zoom button {
+  width: max(44px, 7vmin);
+  height: max(44px, 7vmin);
+  border: none;
+  background: none;
+  color: var(--text);
+  font: 500 max(22px, 3.6vmin) / 1 var(--font-ui);
+  cursor: pointer;
+}
+.map-zoom button + button {
+  border-top: 1px solid var(--line);
+}
+.map-zoom button:active {
+  background: var(--panel-2);
 }
 
 /* Kinds that are always listed, with none on the map right now. */

@@ -104,9 +104,15 @@ Pi screen face different ways:
 - Its path covers the last `map.trailMinutes`, thinning towards the old end. The server keeps every plane's track since
   it was first heard (and across restarts), so paths are there as soon as a screen opens.
 - The plane on the card gets a thin outline in its colour and its path a soft glow.
-- **Tap a plane** and the map zooms out to its whole flight since take-off (from adsb.lol), coloured by altitude: orange
-  near the ground through yellow, green and blue to purple at 40,000 ft and up, with a key under the compass. Closing the
-  pop-up zooms back in.
+- **Tap a plane** and its whole flight since take-off (from adsb.lol) is drawn coloured by altitude: orange near the
+  ground through yellow, green and blue to purple at 40,000 ft and up, with a key under the compass. Zoom out to see
+  where it came from.
+- **Pinch or scroll to zoom, drag to look around**, or use the **+ / −** buttons (double-tap zooms in too). Pinch zoom is
+  quicker than one-to-one: fingers twice as far apart zoom 32× closer, on a touchscreen or a laptop trackpad, and the
+  mouse wheel zooms two levels a notch, smoothly (`PINCH_GAIN`, `WHEEL_PINCH_RATE` and friends in
+  `public/js/map.js`). Gestures on
+  the map never skip cards, and the map stays up while you use it. **Re-centre** (or a minute untouched) goes back to
+  the usual view. On a map turned to face the viewer (`facing-up`) it zooms about the centre and doesn't drag.
 - Labels show the flight number and model, then the airline (or private, police, air ambulance…), altitude and speed.
 - The summary in the corner counts the planes per airline, then police, air ambulance, government, military and private.
 

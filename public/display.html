@@ -38,12 +38,18 @@
               <img id="c-img" alt="" decoding="async" />
               <figcaption id="c-credit"></figcaption>
             </figure>
-            <aside class="fact" id="c-fact" hidden>
-              <div class="lbl">
-                <span class="on-air" aria-hidden="true"></span><span id="c-fact-label">Did you know?</span>
-              </div>
-              <p id="c-fact-text"></p>
-            </aside>
+            <div class="notes" id="c-notes">
+              <aside class="fact" id="c-fact" hidden>
+                <div class="lbl">
+                  <span class="on-air" aria-hidden="true"></span><span id="c-fact-label">Did you know?</span>
+                </div>
+                <p id="c-fact-text"></p>
+              </aside>
+              <section class="radio-log" id="c-radio-log" hidden aria-label="Radio calls with this aircraft">
+                <div class="lbl">Radio</div>
+                <ol id="c-radio-lines"></ol>
+              </section>
+            </div>
           </div>
 
           <section class="route" id="c-route">

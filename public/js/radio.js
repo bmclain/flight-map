@@ -17,6 +17,7 @@ export class RadioPlayer {
     this.blocked = false;
     this.playing = false;
     this.hex = null;
+    this.current = null; // the clip playing now
     this.queue = [];
     this.heard = new Set(); // clip ids already played (or skipped) for this showing
     this.audio.addEventListener('ended', () => this.#next());
@@ -62,6 +63,7 @@ export class RadioPlayer {
     this.hex = null;
     this.audio.pause();
     this.audio.removeAttribute('src');
+    this.current = null;
     if (this.playing) {
       this.playing = false;
       this.onChange();
@@ -72,6 +74,7 @@ export class RadioPlayer {
     const clip = this.enabled && !this.blocked ? this.queue.shift() : null;
     const was = this.playing;
     this.playing = !!clip;
+    this.current = clip;
     if (clip) {
       this.audio.src = clip.url;
       this.audio.play().catch((err) => {
@@ -81,9 +84,10 @@ export class RadioPlayer {
           this.blocked = true;
         }
         this.playing = false;
+        this.current = null;
         this.onChange();
       });
     }
-    if (was !== this.playing) this.onChange();
+    if (was !== this.playing || clip) this.onChange();
   }
 }

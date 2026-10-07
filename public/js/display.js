@@ -395,8 +395,10 @@ let factText = '';
 const factTurn = new Map(); // facts list → index of the next one to show
 
 function renderNote(ac) {
+  const logShown = renderRadioLog(ac);
   const note = $('c-fact');
-  const heard = eff.atc?.enabled ? ac.radio : null;
+  // Heard in the last few minutes: what's going on, instead of the fact.
+  const heard = eff.atc?.enabled && ac.radio?.recent ? ac.radio : null;
   note.classList.toggle('is-radio', !!heard);
   if (heard) {
     const playing = radio.playing && radio.hex === ac.hex;
@@ -405,7 +407,7 @@ function renderNote(ac) {
     $('c-fact-label').textContent = when;
     $('c-fact-text').textContent = heard.summary || 'Talking with air traffic control';
     note.hidden = false;
-    $('card').classList.add('with-fact');
+    showNotes(true);
     return;
   }
   const code = ac.typeInfo?.code ?? '';
@@ -423,7 +425,58 @@ function renderNote(ac) {
   $('c-fact-label').textContent = 'Did you know?';
   $('c-fact-text').textContent = factText;
   note.hidden = !factText;
-  $('card').classList.toggle('with-fact', !!factText);
+  showNotes(!!factText || logShown);
+}
+
+function showNotes(on) {
+  $('c-notes').hidden = !on;
+  $('card').classList.toggle('with-fact', on);
+}
+
+const ROLE_NAME = { to: 'ATC', from: 'Pilot' };
+
+/** Fade the top of the radio log while earlier calls are scrolled out of view. */
+function markScrolled(list) {
+  list.classList.toggle('more-above', list.scrollHeight - list.clientHeight > 2 && list.scrollTop > 2);
+}
+$('c-radio-lines').addEventListener('scroll', (e) => markScrolled(e.target), { passive: true });
+let logKey = null;
+
+/**
+ * Everything heard to or from the plane so far, newest at the bottom, the
+ * call being played marked. Shown (empty if need be) whenever the radio
+ * feature is on; returns whether it's shown.
+ */
+function renderRadioLog(ac) {
+  const box = $('c-radio-log');
+  const on = !!eff.atc?.enabled;
+  box.hidden = !on;
+  if (!on) return false;
+  const lines = ac.radio?.log ?? [];
+  const list = $('c-radio-lines');
+  const key = `${ac.hex}|${eff.display.clock24h}|${lines.map((l) => l.id).join(',')}`;
+  if (key !== logKey) {
+    const sameHex = logKey?.startsWith(`${ac.hex}|`);
+    logKey = key;
+    const clock = (t) =>
+      new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: !eff.display.clock24h });
+    list.innerHTML = lines
+      .map(
+        (l) =>
+          `<li data-id="${esc(l.id)}"><span class="when">${esc(clock(l.at))}</span>${
+            ROLE_NAME[l.role] ? `<span class="who ${l.role}">${ROLE_NAME[l.role]}</span>` : ''
+          }${esc(l.text)}</li>`,
+      )
+      .join('');
+    // Jump straight to the newest call for a new plane; glide down for a new call.
+    list.style.scrollBehavior = sameHex ? '' : 'auto';
+    list.scrollTop = list.scrollHeight;
+    list.style.scrollBehavior = '';
+    markScrolled(list);
+  }
+  const playingId = radio.playing && radio.hex === ac.hex ? radio.current?.id : null;
+  for (const li of list.children) li.classList.toggle('playing', li.dataset.id === playingId);
+  return true;
 }
 
 /** "just now", "40 s ago", "3 min ago". */

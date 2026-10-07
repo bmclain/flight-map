@@ -16,6 +16,7 @@ const MAX_QUEUE = 20;
 const SUMMARY_DELAY_MS = 4000; // wait for the readback before summing up an exchange
 const SUMMARY_WINDOW_MS = 10 * 60_000;
 const MAX_CLIPS_ON_CARD = 4;
+const MAX_LOG_ON_CARD = 20; // lines of the conversation sent to displays
 
 export class AtcService {
   /**
@@ -188,19 +189,26 @@ export class AtcService {
     return text;
   }
 
-  /** What the display needs for one aircraft, or null if it hasn't been heard lately. */
+  /**
+   * What the display needs for one aircraft, or null if it hasn't been heard:
+   * the conversation so far (`log`, everything kept), and the summary and
+   * audio of the last few minutes (`summary`/`clips`; `recent` says if there
+   * are any).
+   */
   brief(hex, now = Date.now()) {
+    const all = this.transmissions.filter((t) => t.hex === hex);
+    if (!all.length) return null;
     const recentMs = this.cfg.recentMinutes * 60_000;
-    const mine = this.transmissions.filter((t) => t.hex === hex && now - t.at <= recentMs);
-    if (!mine.length) return null;
-    const last = mine[mine.length - 1];
+    const recent = all.filter((t) => now - t.at <= recentMs);
     return {
-      summary: this.summaries.get(hex)?.text ?? null,
-      lastAt: last.at,
-      clips: mine
+      recent: recent.length > 0,
+      summary: recent.length ? (this.summaries.get(hex)?.text ?? null) : null,
+      lastAt: all[all.length - 1].at,
+      clips: recent
         .filter((t) => t.file)
         .slice(-MAX_CLIPS_ON_CARD)
         .map((t) => ({ id: t.id, url: `/atc/clips/${t.file}`, at: t.at, role: t.role })),
+      log: all.slice(-MAX_LOG_ON_CARD).map((t) => ({ id: t.id, at: t.at, role: t.role, text: t.text })),
     };
   }
 

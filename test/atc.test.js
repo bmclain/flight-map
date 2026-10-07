@@ -285,6 +285,20 @@ test('the ATC service files transcripts under aircraft and sums them up', async 
   assert.equal(brief.summary, 'Cleared to land on runway 27', 'rule line straight away');
   assert.equal(brief.lastAt, now - 5000);
   assert.equal(atc.brief('c0a712', now), null, 'not heard');
+  assert.deepEqual(
+    brief.log.map((l) => [l.role, l.text]),
+    [
+      ['to', 'WestJet 347, Saskatoon Tower, runway 27, cleared to land.'],
+      ['from', 'Cleared to land runway 27, WestJet 347.'],
+    ],
+    'the conversation so far, oldest first',
+  );
+  // Past the recent window: no summary or audio on the card, but the conversation stays.
+  const later = atc.brief('c0ffee', now + 15 * 60_000);
+  assert.equal(later.recent, false);
+  assert.equal(later.summary, null);
+  assert.deepEqual(later.clips, []);
+  assert.equal(later.log.length, 2);
   assert.equal(atc.recent().length, 3);
   assert.equal(atc.recent()[0].hex, null, 'unattributed calls are kept too');
 

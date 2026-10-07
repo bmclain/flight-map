@@ -317,10 +317,18 @@ body[data-theme='dark'] [data-special='ambulance'] {
   color: var(--sp-ink, #fff);
 }
 
-/* photo */
+/* photo, with a fact about the type under it */
+
+.visual {
+  grid-area: photo;
+  display: flex;
+  flex-direction: column;
+  gap: 2cqmin;
+}
 
 .photo {
-  grid-area: photo;
+  flex: 1 1 0;
+  min-height: 0;
   position: relative;
   margin: 0;
   border-radius: 2.4cqmin;
@@ -391,6 +399,55 @@ body[data-theme='dark'] [data-special='ambulance'] {
 }
 .photo.has-photo figcaption:not(:empty) {
   opacity: 1;
+}
+
+.fact {
+  flex: 0 0 auto;
+  padding: 1.8cqmin 2.8cqmin 2cqmin;
+  background: var(--panel);
+  border-radius: 2.4cqmin;
+}
+.fact[hidden] {
+  display: none;
+}
+.fact .lbl {
+  font-size: 2cqmin;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+/* Heard on the radio lately: same panel, with an on-air light. */
+.fact .on-air {
+  display: none;
+}
+.fact.is-radio .lbl {
+  color: var(--accent-2);
+}
+.fact.is-radio .on-air {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-right: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 0.02em;
+  animation: on-air 1.6s ease-in-out infinite;
+}
+@keyframes on-air {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fact.is-radio .on-air {
+    animation: none;
+  }
+}
+.fact p {
+  margin: 0.6cqmin 0 0;
+  font-size: 2.7cqmin;
+  line-height: 1.3;
 }
 
 /* mini map of the flight, in its own panel */
@@ -1314,6 +1371,52 @@ body.show-controls #controls {
   }
   #card.with-mini .where .elev {
     justify-content: flex-start;
+  }
+}
+
+/* Square-ish only (portrait has its own stacking): the photo's column is too
+   narrow for the fact, so it gets a full-width row under the photo. */
+@container card (aspect-ratio >= 0.8) and (aspect-ratio < 1.15) {
+  #card.with-fact .visual {
+    display: contents;
+  }
+  #card.with-fact .photo {
+    grid-area: photo;
+  }
+  #card.with-fact .fact {
+    grid-area: fact;
+    padding: 1.2cqmin 2.2cqmin;
+  }
+  /* Label run into the text, to leave the mini map some height. */
+  .fact .lbl,
+  .fact p {
+    display: inline;
+  }
+  .fact .lbl {
+    margin-right: 0.6em;
+  }
+  .fact p {
+    font-size: 2.3cqmin;
+    line-height: 1.25;
+  }
+  #card.with-fact {
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'head head'
+      'photo where'
+      'fact fact'
+      'route route'
+      'stats stats';
+  }
+  #card.with-fact.with-mini {
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'head head'
+      'photo where'
+      'photo mini'
+      'fact fact'
+      'route route'
+      'stats stats';
   }
 }
 

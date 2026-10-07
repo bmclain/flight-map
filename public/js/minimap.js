@@ -122,7 +122,8 @@ export class MiniMap {
 
   #attrib(withFlight) {
     if (!this.attribEl) return;
-    this.attribEl.textContent = [this.tileAttribution, withFlight ? 'adsb.lol' : ''].filter(Boolean).join(' · ');
+    const flightSource = withFlight ? (this.flight?.source ?? 'adsb.lol') : '';
+    this.attribEl.textContent = [this.tileAttribution, flightSource].filter(Boolean).join(' · ');
   }
 
   /** Fetch the flight so far from take-off; show() runs again when it arrives. */
@@ -136,7 +137,13 @@ export class MiniMap {
       .catch(() => null)
       .then((body) => {
         if (this.flight?.hex !== hex) return;
-        this.flight = { hex, points: body?.track?.points ?? keep, at: Date.now(), loading: false };
+        this.flight = {
+          hex,
+          points: body?.track?.points ?? keep,
+          source: body?.track?.source ?? (f?.hex === hex ? f.source : undefined),
+          at: Date.now(),
+          loading: false,
+        };
         if (this.last?.[0]?.hex === hex) this.show(...this.last);
       });
   }

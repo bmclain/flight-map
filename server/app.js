@@ -6,6 +6,7 @@ import { ConfigStore } from './config.js';
 import { Tracker } from './tracker.js';
 import { TrafficLog } from './traffic.js';
 import { Enricher } from './enrich/index.js';
+import { AtcService } from './atc/index.js';
 import { HttpSource, expandUrl } from './sources/http.js';
 import { SimulatorSource } from './sources/simulator.js';
 
@@ -19,9 +20,18 @@ export class App {
     this.fetch = fetchImpl;
     this.configStore = new ConfigStore(dataDir, { env, log });
     this.getConfig = () => this.configStore.get();
-    this.enricher = new Enricher({ dataDir, getConfig: this.getConfig, log, fetchImpl });
+    this.enricher = new Enricher({ dataDir, getConfig: this.getConfig, log, fetchImpl, env });
     this.tracker = new Tracker({ getConfig: this.getConfig, enricher: this.enricher });
     this.traffic = new TrafficLog({ dataDir, getConfig: this.getConfig, log });
+    this.atc = new AtcService({
+      dataDir,
+      getConfig: this.getConfig,
+      candidates: () => this.#radioCandidates(),
+      log,
+      fetchImpl,
+      env,
+    });
+    this.tracker.radio = (hex) => this.atc.brief(hex);
     this.tracksFile = path.join(dataDir, 'cache', 'tracks.json');
     this.clients = new Set();
     this.source = null;
@@ -41,6 +51,7 @@ export class App {
       this.log.warn(`tracks: ${err.message}`);
     }
     this.#startSource();
+    await this.atc.start();
     this.configStore.onChange((next, prev) => {
       if (JSON.stringify(next.source) !== JSON.stringify(prev.source)) {
         // Don't carry planes over from the old source (simulated ones in particular).
@@ -48,6 +59,9 @@ export class App {
         this.#startSource();
       }
       if (next.enrichment.aircraftDb && !prev.enrichment.aircraftDb) this.enricher.loadDatabases();
+      const atcSource = (c) =>
+        JSON.stringify([c.atc.enabled, c.atc.source, c.atc.folder, c.atc.streamUrl, c.atc.whisperUrl]);
+      if (atcSource(next) !== atcSource(prev)) this.atc.restart();
       this.broadcast('config', { config: next });
     });
     this.broadcastTimer = setInterval(() => this.#broadcastAircraft(), BROADCAST_MS);
@@ -58,6 +72,7 @@ export class App {
     clearInterval(this.broadcastTimer);
     clearInterval(this.keepAliveTimer);
     this.source?.stop();
+    this.atc.stop();
     await this.traffic.stop();
     await this.tracker.saveTracks(this.tracksFile).catch((err) => this.log.warn(`tracks: ${err.message}`));
     for (const res of this.clients) res.end();
@@ -99,6 +114,26 @@ export class App {
     this.enricher.routes.override = this.source.lookupRoute ? (cs) => this.source.lookupRoute(cs) : null;
     this.log.info(`source: ${cfg.type}${cfg.type === 'simulator' ? '' : ` (${this.source.status().url})`}`);
     this.source.start();
+  }
+
+  /**
+   * Aircraft that might be on the radio, nearest first, with the airline's
+   * radio name ("WJA347" → "WESTJET") and what the summary needs to know.
+   */
+  #radioCandidates() {
+    return this.tracker.snapshot({ radio: false }).map((a) => ({
+      hex: a.hex,
+      callsign: a.callsign,
+      reg: a.reg,
+      telephony: this.enricher.operators[(a.callsign ?? '').slice(0, 3)]?.r ?? null,
+      typeName: a.typeInfo?.name ?? null,
+      airline: a.airline?.name ?? null,
+      onGround: a.onGround,
+      altFt: a.altFt ?? a.altGeomFt,
+      vertRateFpm: a.vertRateFpm,
+      gsKt: a.gsKt,
+      distanceKm: a.distanceKm,
+    }));
   }
 
   // ---- live stream -----------------------------------------------------------
@@ -165,6 +200,7 @@ export class App {
       tracker: { tracked: this.tracker.count, lastUpdate: this.tracker.lastUpdate },
       enrichment: this.enricher.status(),
       traffic: this.traffic.status(),
+      atc: this.atc.status(),
       displays: this.clients.size,
     };
   }

@@ -41,6 +41,7 @@ const TYPES = {
   '.woff2': 'font/woff2',
   '.woff': 'font/woff',
   '.webmanifest': 'application/manifest+json',
+  '.wav': 'audio/wav',
 };
 
 function sendJson(res, status, body) {
@@ -116,6 +117,8 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
 
     'GET /api/status': (req, res) => sendJson(res, 200, app.status()),
 
+    'GET /api/atc/recent': (req, res) => sendJson(res, 200, { transmissions: app.atc.recent() }),
+
     'GET /api/traffic': async (req, res, url) => {
       const date = url.searchParams.get('date');
       if (date && !isDayKey(date)) return sendJson(res, 400, { error: 'date must be YYYY-MM-DD' });
@@ -164,12 +167,21 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
       const lookup = /^\/api\/aircraft\/([0-9a-f]{6})\/lookup$/.exec(pathname);
       if (lookup && req.method === 'POST') return sendJson(res, app.tracker.want(lookup[1]) ? 202 : 404, {});
 
-      // The whole flight so far (adsb.lol), for aircraft we're tracking.
+      // The whole flight so far (adsb.lol), for aircraft we're tracking. For a
+      // plane someone tapped (?tapped), a missing start may come from FlightAware.
       const track = /^\/api\/aircraft\/([0-9a-f]{6})\/track$/.exec(pathname);
       if (track && req.method === 'GET') {
-        if (!app.tracker.planes.has(track[1])) return sendJson(res, 404, { error: 'Not tracking that aircraft' });
-        return sendJson(res, 200, { track: await app.enricher.flightTracks.get(track[1]) });
+        const hex = track[1];
+        if (!app.tracker.planes.has(hex)) return sendJson(res, 404, { error: 'Not tracking that aircraft' });
+        if (url.searchParams.has('tapped')) app.tracker.want(hex);
+        const ac = app.tracker.snapshot({ radio: false }).find((a) => a.hex === hex) ?? { hex };
+        const tapped = app.tracker.wanted.has(hex);
+        return sendJson(res, 200, { track: await app.enricher.trackFor(ac, { tapped }) });
       }
+
+      // What it's been saying on the radio (and being told).
+      const radio = /^\/api\/aircraft\/([0-9a-f]{6})\/radio$/.exec(pathname);
+      if (radio && req.method === 'GET') return sendJson(res, 200, app.atc.detail(radio[1]));
 
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
 
@@ -180,6 +192,12 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
       if (PAGES[pathname]) return sendFile(res, PAGES[pathname]);
       if (pathname === '/favicon.ico' || pathname === '/favicon.svg') {
         return sendFile(res, path.join(ROOT, 'public', 'img', 'favicon.svg'), { immutable: true });
+      }
+
+      const clip = /^\/atc\/clips\/([^/]+)$/.exec(pathname);
+      if (clip) {
+        const file = app.atc.clipPath(clip[1]);
+        return file ? sendFile(res, file, { immutable: true }) : sendJson(res, 404, { error: 'Not found' });
       }
 
       const typeImg = /^\/images\/types\/([A-Za-z0-9]{2,4})$/.exec(pathname);

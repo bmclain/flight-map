@@ -14,7 +14,7 @@ import {
 import { elevationText, relativeDirectionText, verticalTrend } from '../shared/directions.js';
 import { formatAltitude, formatDistance, formatSpeed, kmToUnit, unitToKm } from '../shared/units.js';
 import { isDaylight, sunElevationDeg } from '../shared/sun.js';
-import { estimateFlightTimes, formatDuration } from '../shared/flighttimes.js';
+import { airportClock, estimateFlightTimes, formatDuration, landingDayOffset } from '../shared/flighttimes.js';
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg ?? ''} expected ${b} ± ${tol}, got ${a}`);
 
@@ -122,6 +122,36 @@ test('estimated take-off, landing and duration', () => {
   assert.equal(formatDuration(95), '1 h 35 min');
   assert.equal(formatDuration(40), '40 min');
   assert.equal(formatDuration(120), '2 h');
+});
+
+test("take-off and landing times are shown in each airport's own time zone", () => {
+  // 20:00 UTC on 2 Oct 2026: 1:00 PM in Vancouver (PDT), 2:00 PM in Saskatoon (CST all year).
+  const t = Date.UTC(2026, 9, 2, 20, 0);
+  assert.equal(airportClock(t, 'America/Vancouver', { locale: 'en-US' }), '1:00 PM');
+  assert.equal(airportClock(t, 'America/Regina', { locale: 'en-US' }), '2:00 PM');
+  assert.equal(airportClock(t, 'Asia/Kolkata', { locale: 'en-US', hour12: false }), '01:30');
+  // A missing or unknown zone falls back to the viewer's own clock rather than failing.
+  const own = new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  assert.equal(airportClock(t, null, { locale: 'en-US' }), own);
+  assert.equal(airportClock(t, 'Mars/Olympus_Mons', { locale: 'en-US' }), own);
+});
+
+test('landing day offset compares local dates at each end, like a timetable', () => {
+  const hour = 3600_000;
+  // Vancouver 1:00 PM 2 Oct → 10 h → Tokyo 3:00 PM 3 Oct: +1.
+  const yvr = Date.UTC(2026, 9, 2, 20, 0);
+  assert.equal(landingDayOffset(yvr, 'America/Vancouver', yvr + 10 * hour, 'Asia/Tokyo'), 1);
+  // Tokyo 5:00 PM 3 Oct → 9 h → Vancouver 10:00 AM 3 Oct: same day.
+  const nrt = Date.UTC(2026, 9, 3, 8, 0);
+  assert.equal(landingDayOffset(nrt, 'Asia/Tokyo', nrt + 9 * hour, 'America/Vancouver'), 0);
+  // Tokyo 12:30 AM 4 Oct → 9 h → Vancouver 5:30 PM 3 Oct: lands the day before.
+  const late = Date.UTC(2026, 9, 3, 15, 30);
+  assert.equal(landingDayOffset(late, 'Asia/Tokyo', late + 9 * hour, 'America/Vancouver'), -1);
+  // Vancouver 11:00 PM → 2 h → Saskatoon 2:00 AM: past midnight there.
+  const redeye = Date.UTC(2026, 9, 3, 6, 0);
+  assert.equal(landingDayOffset(redeye, 'America/Vancouver', redeye + 2 * hour, 'America/Regina'), 1);
+  // No zones known: both in the viewer's zone, still a valid offset.
+  assert.equal(landingDayOffset(yvr, null, yvr + hour, null) >= 0, true);
 });
 
 test('great-circle points run from end to end along the route', () => {

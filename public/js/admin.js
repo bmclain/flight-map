@@ -572,9 +572,89 @@ async function refreshStatus() {
           : `Your library: ${photos.userTypePhotos} types, ${photos.userAirframePhotos} airframes`,
         photos.lastError && Date.now() - photos.lastError.at < 600_000 ? 'warn' : 'ok',
       ),
+      s.atc?.enabled ? atcTile(s.atc) : '',
+      s.enrichment.flightaware?.configured ? flightAwareTile(s.enrichment.flightaware) : '',
     ].join('');
+    renderFlightAwareState(s.enrichment.flightaware);
+    if (s.atc?.enabled) refreshAtcRecent();
   } catch {
     $('#status').innerHTML = tile('Server', 'Unreachable', 'Is Look Up running?', 'bad');
+  }
+}
+
+const usd = (v) => `$${(v ?? 0).toFixed(v >= 1 ? 2 : 3)}`;
+
+function flightAwareTile(fa) {
+  const calls = Object.entries(fa.calls ?? {})
+    .filter(([k]) => k !== 'usage')
+    .map(([k, n]) => `${n} ${k}`)
+    .join(', ');
+  const theirs = fa.reported ? ` · FlightAware says ${usd(fa.reported.cost)}` : '';
+  const sub = fa.disabledReason
+    ? fa.disabledReason
+    : !fa.active
+      ? 'Off (switched off, or simulated traffic)'
+      : fa.lastRefusal && Date.now() - fa.lastRefusal.at < 600_000
+        ? `Holding back: ${fa.lastRefusal.reason}`
+        : `${usd(fa.leftTodayUsd)} left today${calls ? ` · ${calls}` : ''}`;
+  return tile(
+    'FlightAware this month',
+    `${usd(fa.spentThisMonthUsd)} of ${usd(fa.budgetUsd)}${theirs}`,
+    sub,
+    fa.disabledReason ? 'bad' : fa.leftThisMonthUsd <= 0 ? 'warn' : 'ok',
+  );
+}
+
+function renderFlightAwareState(fa) {
+  const el = $('#fa-state');
+  if (!el) return;
+  el.textContent = !fa?.configured
+    ? 'No API key: set FLIGHTAWARE_API_KEY in the server environment to use FlightAware.'
+    : `This month: ${usd(fa.spentThisMonthUsd)} of ${usd(fa.budgetUsd)} spent, ${usd(fa.spentTodayUsd)} today.`;
+}
+
+function atcTile(atc) {
+  const src = atc.source ?? {};
+  const recentError = [atc.lastError, src.lastError].find((e) => e && Date.now() - e.at < 600_000);
+  const listening =
+    src.type === 'stream' ? (src.connected ? 'Stream connected' : 'Stream not connected') : 'Watching folder';
+  const sum = atc.summaries;
+  const summaries = sum.available
+    ? `Claude summaries: ${sum.requests} so far${sum.lastError ? ` · last error: ${sum.lastError.message}` : ''}`
+    : 'Built-in summaries (no Anthropic API key)';
+  return tile(
+    'Air traffic control',
+    `${atc.transcribed} calls · ${atc.attributed} matched to aircraft`,
+    recentError ? `${listening} · ${recentError.message}` : `${listening} · ${summaries}`,
+    recentError ? 'warn' : src.type === 'stream' && !src.connected ? 'bad' : 'ok',
+  );
+}
+
+const clock = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+
+async function refreshAtcRecent() {
+  try {
+    const [{ transmissions }, { aircraft }] = await Promise.all([
+      (await fetch('/api/atc/recent')).json(),
+      (await fetch('/api/aircraft')).json(),
+    ]);
+    const names = new Map(aircraft.map((a) => [a.hex, a.flight || a.callsign || a.reg || a.hex]));
+    const role = { to: 'to', from: 'from' };
+    $('#atc-recent').innerHTML = transmissions.length
+      ? transmissions
+          .slice(0, 12)
+          .map(
+            (t) =>
+              `<li><span class="when">${esc(clock(t.at))}</span> <b>${
+                t.hex
+                  ? `${esc(role[t.role] ?? '')} ${esc(names.get(t.hex) ?? t.hex)}`
+                  : '<span class="muted">unmatched</span>'
+              }</b> ${esc(t.text)}${t.url ? ` <a href="${esc(t.url)}" target="_blank" title="Play">▶</a>` : ''}</li>`,
+          )
+          .join('')
+      : '<li class="muted">Nothing yet.</li>';
+  } catch {
+    // The status tile reports the server being unreachable.
   }
 }
 

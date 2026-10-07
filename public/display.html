@@ -31,12 +31,20 @@
             </div>
           </header>
 
-          <figure class="photo" id="c-photo">
-            <div class="silhouette" id="c-silhouette"></div>
-            <img id="c-img-bg" class="bg" alt="" decoding="async" />
-            <img id="c-img" alt="" decoding="async" />
-            <figcaption id="c-credit"></figcaption>
-          </figure>
+          <div class="visual">
+            <figure class="photo" id="c-photo">
+              <div class="silhouette" id="c-silhouette"></div>
+              <img id="c-img-bg" class="bg" alt="" decoding="async" />
+              <img id="c-img" alt="" decoding="async" />
+              <figcaption id="c-credit"></figcaption>
+            </figure>
+            <aside class="fact" id="c-fact" hidden>
+              <div class="lbl">
+                <span class="on-air" aria-hidden="true"></span><span id="c-fact-label">Did you know?</span>
+              </div>
+              <p id="c-fact-text"></p>
+            </aside>
+          </div>
 
           <section class="route" id="c-route">
             <div class="ap from">
@@ -209,6 +217,7 @@
       <button data-action="next" title="Next (→)">›</button>
       <button data-action="map" title="Stay on the map (M)" id="map-btn">Map</button>
       <button data-action="theme" id="theme-btn" title="Light or dark (T)">◐ Auto</button>
+      <button data-action="sound" id="sound-btn" title="Radio sound (S)" hidden>🔊</button>
       <button data-action="fullscreen" title="Full screen (F)">⛶</button>
       <a href="/admin" title="Settings">⚙</a>
     </nav>

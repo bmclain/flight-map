@@ -563,7 +563,8 @@ export class MapView {
     }
     const sel = { hex, flight: null };
     this.selected = sel;
-    fetch(`/api/aircraft/${hex}/track`)
+    // ?tapped: someone wants this one, so the server may fill in the start from FlightAware.
+    fetch(`/api/aircraft/${hex}/track?tapped`)
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null)
       .then((body) => {

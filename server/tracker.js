@@ -27,6 +27,7 @@ export class Tracker {
     this.lastUpdate = null;
     this.wanted = new Map(); // hex → expiry: someone tapped it, look it up even if far away
     this.restored = new Map(); // hex → { firstSeen, trail } saved before a restart
+    this.radio = null; // (hex) => what's been heard from it on the radio lately, or null
   }
 
   ingest({ aircraft }, now = Date.now()) {
@@ -85,7 +86,7 @@ export class Tracker {
    * Aircraft with a recent position inside the larger of the map and cycle
    * ranges, nearest first, with geometry relative to the receiver.
    */
-  snapshot({ trails = false, now = Date.now() } = {}) {
+  snapshot({ trails = false, radio = true, now = Date.now() } = {}) {
     const { receiver, map, display } = this.getConfig();
     const rangeKm = Math.max(map.rangeKm, display.cycleRangeKm);
     const lookupKm = display.cycleRangeKm * 1.5;
@@ -135,6 +136,8 @@ export class Tracker {
         ...extra,
       };
       if (trails) item.trail = s.trail.map((p) => p.slice());
+      const heard = radio && this.radio?.(hex);
+      if (heard) item.radio = heard;
       out.push(item);
     }
     out.sort((a, b) => a.distanceKm - b.distanceKm);

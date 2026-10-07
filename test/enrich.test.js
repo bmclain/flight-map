@@ -6,6 +6,7 @@ import zlib from 'node:zlib';
 import { DEFAULT_CONFIG } from '../server/config.js';
 import { categoryFromDesc, splitIcaoName, TypeDb } from '../server/enrich/types.js';
 import {
+  airportTimeZone,
   isAirlineCallsign,
   normalizeAdsbdbRoute,
   normalizeRoutesetEntry,
@@ -213,6 +214,22 @@ test('resolveLeg picks the leg being flown and flags implausible routes', () => 
   assert.equal(overNebraska.plausible, true);
   const overFlorida = resolveLeg(route, { lat: 27.9, lon: -82.5 });
   assert.equal(overFlorida.plausible, false);
+});
+
+test("resolveLeg adds each airport's time zone", () => {
+  const route = {
+    airports: [
+      { iata: 'YXE', lat: 52.1708, lon: -106.7 },
+      { iata: 'YYC', lat: 51.1139, lon: -114.02 },
+    ],
+    source: 'test',
+  };
+  const leg = resolveLeg(route, null);
+  assert.equal(leg.origin.tz, 'America/Regina'); // Saskatchewan: no daylight saving
+  assert.equal(leg.destination.tz, 'America/Edmonton');
+  assert.equal(route.airports[0].tz, undefined, 'the cached route is left as it was');
+  assert.equal(airportTimeZone({ lat: 51.47, lon: -0.45 }), 'Europe/London');
+  assert.equal(airportTimeZone({ lat: null, lon: null }), null);
 });
 
 test('RouteResolver batches adsb.im lookups and falls back to adsbdb', async () => {

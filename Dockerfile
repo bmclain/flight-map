@@ -5,6 +5,9 @@ ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIR=/data
 
+# ffmpeg decodes the air traffic control audio (MP3 streams and files).
+RUN apk add --no-cache ffmpeg
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 

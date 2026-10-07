@@ -369,6 +369,41 @@
         >
       </section>
 
+      <!-- FlightAware ------------------------------------------------------------------------>
+      <section class="card" id="flightaware-settings">
+        <h2>FlightAware</h2>
+        <p class="help">
+          FlightAware's AeroAPI fills in routes the free sources don't know, with the real take-off time and its landing
+          estimate. It's paid per query, so Look Up only asks about planes in the air near you that nothing else could
+          place, and stops for the month at the budget below. Needs <code>FLIGHTAWARE_API_KEY</code> set on the server;
+          never used with the simulator.
+        </p>
+        <p class="help" id="fa-state"></p>
+        <label class="check"><input type="checkbox" data-path="flightaware.enabled" /> Use FlightAware</label>
+        <div class="row-2">
+          <label
+            >Monthly budget (US $)
+            <input type="number" min="0" max="10" step="0.5" data-path="flightaware.monthlyBudgetUsd" /><small
+              >A hard stop. The Personal plan waives the first $5 a month ($10 for ADS-B feeders), so stay under that
+              and it's free. Spread evenly over the days left in the month.</small
+            ></label
+          >
+          <label
+            >Queries per minute <input type="number" min="1" max="8" step="1" data-path="flightaware.perMinute" /><small
+              >FlightAware allows 10 on the Personal plan.</small
+            ></label
+          >
+        </div>
+        <label class="check"
+          ><input type="checkbox" data-path="flightaware.generalAviation" /> Also look up business jets and turboprops
+          by registration ($0.005 each)</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-path="flightaware.tracks" /> When a plane is tapped on the map, fill in the start
+          of its flight path if adsb.lol hasn't got it ($0.012)</label
+        >
+      </section>
+
       <!-- Daily traffic ------------------------------------------------------------------->
       <section class="card" id="traffic-settings">
         <h2>Daily traffic</h2>
@@ -404,6 +439,80 @@
             <input type="number" min="1" step="1" data-path="traffic.airport.radiusKm" data-kind="distance"
           /></label>
         </div>
+      </section>
+
+      <!-- Air traffic control radio ------------------------------------------------------->
+      <section class="card span-2" id="atc-settings">
+        <h2>Air traffic control radio</h2>
+        <p class="help">
+          Listens to tower and ground radio, works out which plane each call is to or from, and shows what's going on in
+          plain words on that plane's card, playing the calls as it comes up. Needs the <code>whisper</code>
+          speech-to-text service running (see the README); plain-English summaries by Claude need
+          <code>ANTHROPIC_API_KEY</code> set, otherwise a simpler built-in description is used.
+        </p>
+        <label class="check"><input type="checkbox" data-path="atc.enabled" /> Listen to air traffic control</label>
+        <div class="row-2">
+          <label
+            >Audio from
+            <select data-path="atc.source">
+              <option value="folder">Audio files dropped in a folder (SDR recordings, downloaded clips)</option>
+              <option value="stream">A live audio stream (Icecast / MP3 URL)</option>
+            </select></label
+          >
+          <label
+            >Local facility name
+            <input type="text" maxlength="60" placeholder="e.g. Saskatoon" data-path="atc.facility" /><small
+              >As said on the radio: "Saskatoon Tower", "Saskatoon Ground".</small
+            ></label
+          >
+        </div>
+        <div data-show="atc.source=folder">
+          <label
+            >Folder <input type="text" spellcheck="false" placeholder="data/atc/inbox" data-path="atc.folder" /><small
+              >Empty = <code>data/atc/inbox</code>. Each file is split into calls and moved to <code>done/</code>.
+              rtl_airband with <code>split_on_transmission</code> can write straight into it.</small
+            ></label
+          >
+        </div>
+        <div data-show="atc.source=stream">
+          <label
+            >Stream URL
+            <input
+              type="url"
+              spellcheck="false"
+              placeholder="http://raspberrypi.local:8000/yxe"
+              data-path="atc.streamUrl"
+            /><small
+              >e.g. rtl_airband's Icecast output. Only use streams you have permission to process — LiveATC doesn't
+              allow it without their agreement.</small
+            ></label
+          >
+        </div>
+        <label
+          >Speech-to-text service
+          <input type="url" spellcheck="false" placeholder="http://whisper:8080" data-path="atc.whisperUrl"
+        /></label>
+        <label class="check"
+          ><input type="checkbox" data-path="atc.summaries" /> Plain-English summaries by Claude (when an API key is
+          set)</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-path="atc.playAudio" /> Play a plane's calls when its card comes up (each screen
+          can mute with its 🔊 button)</label
+        >
+        <div class="row-2">
+          <label
+            >Show calls from the last (minutes)
+            <input type="number" min="1" max="60" step="1" data-path="atc.recentMinutes"
+          /></label>
+          <label
+            >Keep audio for (minutes) <input type="number" min="5" max="1440" step="5" data-path="atc.keepMinutes"
+          /></label>
+        </div>
+        <h3>Heard lately</h3>
+        <ol class="atc-recent" id="atc-recent">
+          <li class="muted">Nothing yet.</li>
+        </ol>
       </section>
 
       <!-- Special aircraft ---------------------------------------------------------------->

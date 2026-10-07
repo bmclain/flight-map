@@ -7,12 +7,14 @@ import { compassPoint, relativeBearing } from '/shared/geo.js';
 import { elevationText, relativeDirectionText, verticalTrend } from '/shared/directions.js';
 import { formatAltitude, formatDistance, formatSpeed, joinUnit } from '/shared/units.js';
 import { isDaylight } from '/shared/sun.js';
-import { estimateFlightTimes, formatDuration } from '/shared/flighttimes.js';
+import { airportClock, estimateFlightTimes, formatDuration, landingDayOffset } from '/shared/flighttimes.js';
+import { typeFacts } from '/shared/type-facts.js';
 import { EMERGENCY_SQUAWKS, SPECIAL_LABELS } from '/shared/special-kinds.js';
 import { silhouettePaths, silhouetteSvg } from './icons.js';
 import { LiveData } from './stream.js';
 import { MapView } from './map.js';
 import { MiniMap } from './minimap.js';
+import { RadioPlayer } from './radio.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) =>
@@ -37,6 +39,20 @@ function storedTheme() {
   }
 }
 
+const SOUND_KEY = 'look-up.sound';
+
+/** Sound on or off for this screen: the speaker button's choice, else ?sound=off. */
+function storedSound() {
+  try {
+    const v = localStorage.getItem(SOUND_KEY);
+    if (v === 'on' || v === 'off') return v === 'on';
+  } catch {
+    /* storage blocked */
+  }
+  return params.get('sound') === 'off' ? false : null;
+}
+let soundOn = storedSound() ?? true;
+
 const overrides = {
   facingDeg: params.has('facing') ? Number(params.get('facing')) : null,
   layout: ['card', 'split'].includes(params.get('layout')) ? params.get('layout') : null,
@@ -49,7 +65,7 @@ function effective(config) {
   for (const [k, v] of Object.entries(overrides)) {
     if (v != null && !(typeof v === 'number' && !Number.isFinite(v))) display[k] = v;
   }
-  return { receiver: config.receiver, display, map: config.map, enrichment: config.enrichment };
+  return { receiver: config.receiver, display, map: config.map, enrichment: config.enrichment, atc: config.atc };
 }
 
 // ---- state -------------------------------------------------------------------------
@@ -78,6 +94,8 @@ const mapView = new MapView({
   zoomOut: $('map-zoom-out'),
   onSelect: (hex) => openPopup(hex),
 });
+
+const radio = new RadioPlayer({ onChange: () => updateSoundButton() });
 
 const miniMap = new MiniMap({ wrap: $('c-minimap'), el: $('c-minimap-map'), attribution: $('c-minimap-attrib') });
 
@@ -240,19 +258,35 @@ function airportParts(ap) {
 function cardRoute(ac) {
   const r = ac.route;
   if (r?.origin && r?.destination) {
-    const times = estimateFlightTimes(r, ac);
-    // Kept on one line ("5:10 PM", not "5:10" / "PM") when a narrow panel wraps.
-    const clock = (t) =>
-      new Date(t)
-        .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: !eff.display.clock24h })
-        .replace(/\s/g, '\u00a0');
+    // FlightAware's times when we have them (real take-off, its landing
+    // estimate), otherwise our own estimate from position and speed.
+    const fa = r.times?.takeoff && r.times?.landing ? r.times : null;
+    const est = fa ? null : estimateFlightTimes(r, ac);
+    const times = fa ?? est;
+    // Local time at each airport, as on a timetable. Kept on one line
+    // ("5:10 PM", not "5:10" / "PM") when a narrow panel wraps.
+    const clock = (t, tz) => airportClock(t, tz, { hour12: !eff.display.clock24h }).replace(/\s/g, '\u00a0');
     const past = (t) => t <= Date.now();
+    let landing = '';
+    let duration = '';
+    if (times) {
+      // "+1" when it lands on a later local date than it took off.
+      const days = landingDayOffset(times.takeoff, r.origin.tz, times.landing, r.destination.tz);
+      const dayMark = days ? `\u00a0${days > 0 ? '+' : '−'}${Math.abs(days)}` : '';
+      landing = past(times.landing)
+        ? 'Landing now'
+        : `Lands ≈\u00a0${clock(times.landing, r.destination.tz)}${dayMark}`;
+      const minutes = fa ? Math.max(5, Math.round((fa.landing - fa.takeoff) / 300_000) * 5) : est.durationMin;
+      duration = `${fa ? '' : '≈ '}${formatDuration(minutes)}`;
+      if (fa?.arrivalDelayMin >= 15) duration += ` · ${formatDuration(fa.arrivalDelayMin)} late`;
+    }
     return {
       from: airportParts(r.origin),
       to: airportParts(r.destination),
-      takeoff: times ? `Took off ≈\u00a0${clock(times.takeoff)}` : '',
-      landing: times ? (past(times.landing) ? 'Landing now' : `Lands ≈\u00a0${clock(times.landing)}`) : '',
-      duration: times ? `≈ ${formatDuration(times.durationMin)}` : '',
+      // A take-off FlightAware saw is a fact; ours is an estimate.
+      takeoff: times ? `Took off ${fa ? '' : '≈\u00a0'}${clock(times.takeoff, r.origin.tz)}` : '',
+      landing,
+      duration,
     };
   }
   let none = 'Route unknown';
@@ -316,6 +350,8 @@ function renderCard(ac, ctx) {
   $('c-badges').innerHTML = badgesHtml(ac, ctx);
 
   renderPhoto(ac);
+  playRadio(ac);
+  renderNote(ac);
   renderRoute(ac);
   renderLive(ac);
   miniMap.show(ac, live.trails.get(ac.hex));
@@ -349,6 +385,88 @@ function renderPhoto(ac) {
       bg.removeAttribute('src');
     }
   }
+}
+
+// Under the photo: what the plane's been saying on the radio lately, or else
+// a fact about its type. The fact stays put while a plane is on the card; the
+// next plane of the same type (or this one coming round again) gets the next.
+let factKey = null;
+let factText = '';
+const factTurn = new Map(); // facts list → index of the next one to show
+
+function renderNote(ac) {
+  const note = $('c-fact');
+  const heard = eff.atc?.enabled ? ac.radio : null;
+  note.classList.toggle('is-radio', !!heard);
+  if (heard) {
+    const playing = radio.playing && radio.hex === ac.hex;
+    let when = playing ? 'On the radio now' : `On the radio · ${agoText(heard.lastAt)}`;
+    if (radio.blocked && radio.hex === ac.hex) when += ' · tap for sound';
+    $('c-fact-label').textContent = when;
+    $('c-fact-text').textContent = heard.summary || 'Talking with air traffic control';
+    note.hidden = false;
+    $('card').classList.add('with-fact');
+    return;
+  }
+  const code = ac.typeInfo?.code ?? '';
+  const key = `${ac.hex}|${code}`;
+  if (key !== factKey) {
+    factKey = key;
+    const facts = typeFacts(code);
+    factText = '';
+    if (facts.length) {
+      const i = factTurn.get(facts) ?? Math.floor(Math.random() * facts.length);
+      factTurn.set(facts, (i + 1) % facts.length);
+      factText = facts[i];
+    }
+  }
+  $('c-fact-label').textContent = 'Did you know?';
+  $('c-fact-text').textContent = factText;
+  note.hidden = !factText;
+  $('card').classList.toggle('with-fact', !!factText);
+}
+
+/** "just now", "40 s ago", "3 min ago". */
+function agoText(t) {
+  const s = Math.max(0, Math.round((live.now() - t) / 1000));
+  if (s < 10) return 'just now';
+  if (s < 60) return `${s} s ago`;
+  return `${Math.round(s / 60)} min ago`;
+}
+
+/** Play the shown plane's calls (when sound is on for this screen and in settings). */
+function playRadio(ac) {
+  const on = soundOn && !!eff.atc?.enabled && eff.atc.playAudio !== false;
+  radio.setEnabled(on);
+  if (on) radio.show(ac.hex, ac.radio?.clips ?? []);
+}
+
+function updateSoundButton() {
+  const btn = $('sound-btn');
+  if (!btn || !eff) return;
+  btn.hidden = !eff.atc?.enabled || eff.atc.playAudio === false;
+  btn.textContent = soundOn ? '🔊' : '🔇';
+  btn.classList.toggle('active', soundOn && radio.playing);
+  btn.title = soundOn ? 'Radio sound on — tap to mute (S)' : 'Radio sound off — tap to play (S)';
+  if (shownHex && lastView === 'card') {
+    const ac = live.byHex.get(shownHex);
+    if (ac) renderNote(ac);
+  }
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  try {
+    localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off');
+  } catch {
+    /* storage blocked: the choice lasts until the page reloads */
+  }
+  if (!soundOn) radio.setEnabled(false);
+  else if (shownHex) {
+    const ac = live.byHex.get(shownHex);
+    if (ac) playRadio(ac);
+  }
+  updateSoundButton();
 }
 
 function renderRoute(ac) {
@@ -410,6 +528,7 @@ function showCard(hex, ctx) {
   const card = $('card');
   const first = shownHex == null || lastView !== 'card';
   shownHex = hex;
+  factKey = null; // a new showing: time for another fact
   clearTimeout(swapTimer);
   if (first) {
     lastArrowAngle = relativeBearing(ac.bearingDeg, eff.display.facingDeg);
@@ -615,7 +734,10 @@ function tick() {
   if (kind === 'card') showCard(view.hex, ctx);
   if (kind === 'idle') renderIdle();
   if (kind === 'map' || kind === 'idle-map' || eff.display.layout === 'split') updateMapTitle(ctx, kind);
-  if (kind !== 'card' && lastView === 'card') shownHex = null;
+  if (kind !== 'card' && lastView === 'card') {
+    shownHex = null;
+    radio.stop();
+  }
   // Next time the map comes round it's back to the usual view.
   if (kind === 'card' && eff.display.layout !== 'split') mapView.recenter();
   lastView = kind;
@@ -698,6 +820,7 @@ function onConfig() {
   theme = null;
   applyTheme();
   configureMap();
+  updateSoundButton();
   if (shownHex) {
     const ac = live.byHex.get(shownHex);
     if (ac) renderCard(ac, poolCtx());
@@ -738,6 +861,9 @@ function act(action, hex) {
       break;
     case 'theme':
       cycleTheme();
+      break;
+    case 'sound':
+      toggleSound();
       break;
     case 'map':
       // Stays on the map until pressed again.
@@ -827,6 +953,8 @@ window.addEventListener('keydown', (e) => {
     F: 'fullscreen',
     t: 'theme',
     T: 'theme',
+    s: 'sound',
+    S: 'sound',
   };
   if (e.key === 'Escape' && popHex) {
     closePopup();

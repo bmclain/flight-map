@@ -16,3 +16,18 @@ services:
       # RECEIVER_LAT: "47.6062"
       # RECEIVER_LON: "-122.3321"
       # SOURCE_URL: http://raspberrypi.local/tar1090/data/aircraft.json
+      # Plain-English summaries of air traffic control radio (optional; see README)
+      # ANTHROPIC_API_KEY: sk-ant-...
+
+  # Speech-to-text for the air traffic control radio feature (optional).
+  # Built from source so it runs on CPUs without AVX2 and on the Raspberry Pi.
+  # The first start downloads the model (~490 MB for small.en) into ./data/whisper.
+  whisper:
+    build: ./whisper
+    container_name: look-up-whisper
+    restart: unless-stopped
+    volumes:
+      - ./data/whisper:/models
+    environment:
+      WHISPER_MODEL: small.en
+      WHISPER_THREADS: '8'

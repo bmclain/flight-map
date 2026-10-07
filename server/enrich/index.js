@@ -2,14 +2,22 @@
 import path from 'node:path';
 import { AircraftDb, ensureDbFile, readJsonMaybeGzip } from './tar1090db.js';
 import { TypeDb } from './types.js';
-import { RouteResolver } from './routes.js';
+import { isAirlineCallsign, RouteResolver } from './routes.js';
+import { AirportDb } from './airports.js';
+import { FlightAware } from './flightaware.js';
 import { PhotoResolver } from './photos.js';
 import { FlightTracks } from './flighttrack.js';
 import { AirlineDirectory } from './airlines.js';
 import { callsignAirline, flightCode, knownAirline } from '../../shared/airlines.js';
 import { classifySpecial } from '../special.js';
+import { distanceM } from '../../shared/geo.js';
+
+// A flight path that starts further than this from the origin airport is missing its beginning.
+const TRACK_GAP_M = 150_000;
 
 const DB_REFRESH_MS = 24 * 3600_000;
+// Aircraft that may be flying a filed flight plan FlightAware knows about.
+const IFR_CATEGORIES = new Set(['bizjet', 'turboprop', 'regional', 'narrowbody', 'widebody', 'heavy4']);
 
 // Freight operators: their aircraft carry boxes, not passengers.
 const CARGO_ICAO = new Set([
@@ -55,7 +63,7 @@ export function cleanAirlineName(name) {
 const CACHE_SAVE_MS = 5 * 60_000;
 
 export class Enricher {
-  constructor({ dataDir, getConfig, log = console, fetchImpl = fetch }) {
+  constructor({ dataDir, getConfig, log = console, fetchImpl = fetch, env = process.env }) {
     this.dataDir = dataDir;
     this.dbDir = path.join(dataDir, 'cache', 'tar1090');
     this.getConfig = getConfig;
@@ -73,6 +81,15 @@ export class Enricher {
     this.photos = new PhotoResolver({ dataDir, getConfig, log, fetchImpl });
     this.flightTracks = new FlightTracks({ getConfig, log, fetchImpl });
     this.airlines = new AirlineDirectory({ cacheFile: path.join(dataDir, 'cache', 'airlines.json'), log, fetchImpl });
+    this.airports = new AirportDb();
+    this.flightaware = new FlightAware({
+      apiKey: env.FLIGHTAWARE_API_KEY,
+      dataDir,
+      getConfig,
+      airports: this.airports,
+      log,
+      fetchImpl,
+    });
     this.dbState = { types: 0, operators: 0, aircraft: 0, loading: false, lastError: null };
     this.timers = [];
   }
@@ -81,6 +98,7 @@ export class Enricher {
     await this.routes.load();
     await this.airlines.load();
     await this.photos.init();
+    await this.flightaware.init();
     if (loadDatabases) {
       this.loadDatabases();
       this.timers.push(setInterval(() => this.loadDatabases(), DB_REFRESH_MS));
@@ -104,6 +122,10 @@ export class Enricher {
       if (opsFile) {
         this.operators = readJsonMaybeGzip(opsFile);
         this.dbState.operators = Object.keys(this.operators).length;
+      }
+      // Airport positions, for routes FlightAware gives by code only.
+      if (this.flightaware.apiKey && !this.airports.size) {
+        await this.airports.load(path.join(this.dataDir, 'cache'), opts);
       }
       if (this.getConfig().enrichment.aircraftDb) {
         const acFile = await ensureDbFile(this.dbDir, 'aircraft', opts);
@@ -131,11 +153,13 @@ export class Enricher {
     if (!icao) return null;
     const op = this.operators[icao];
     const known = knownAirline(icao);
-    if (known) return { icao, name: known.name, country: op?.c ?? null, iata: known.iata, brand: known.brand };
+    // `radio`: the name said on the radio ("WESTJET"; Encore flights are "ENCORE").
+    const radio = op?.r ?? null;
+    if (known) return { icao, name: known.name, country: op?.c ?? null, iata: known.iata, brand: known.brand, radio };
     if (!op) return null;
     const opName = cleanAirlineName(op.n);
     const listed = this.airlines.get(icao, opName);
-    return { icao, name: listed?.name ?? opName, country: op.c ?? null, iata: listed?.iata ?? null, brand: null };
+    return { icao, name: listed?.name ?? opName, country: op.c ?? null, iata: listed?.iata ?? null, brand: null, radio };
   }
 
   /**
@@ -148,7 +172,14 @@ export class Enricher {
     const reg = ac.reg ?? db?.reg ?? null;
     const typeCode = ac.type ?? db?.type ?? null;
     const typeInfo = this.types.describe(typeCode, ac.desc ?? db?.desc ?? null, ac.category);
-    const { status: routeStatus, route } = this.routes.get(ac.callsign, ac, { lookup });
+    let { status: routeStatus, route } = this.routes.get(ac.callsign, ac, { lookup });
+    if (!route && lookup) {
+      const fa = this.#flightAware(ac, routeStatus, typeInfo, reg, db);
+      if (fa?.route) {
+        route = fa.route;
+        routeStatus = 'found';
+      } else if (fa?.status === 'pending') routeStatus = 'pending';
+    }
     const airline = this.airline(ac.callsign) ?? (route?.airline?.name ? route.airline : null);
     const photo = lookup ? this.photos.get({ hex: ac.hex, reg, typeInfo }) : null;
     const military = ac.military || !!db?.military;
@@ -173,6 +204,48 @@ export class Enricher {
     };
   }
 
+  /**
+   * Ask FlightAware (paid) about a flight the free sources couldn't place:
+   * airline flights adsb.im and adsbdb don't know (or got wrong), and business
+   * jets and turboprops by registration. Only planes in the air.
+   */
+  #flightAware(ac, routeStatus, typeInfo, reg, db) {
+    if (!this.flightaware.active || ac.onGround || !(ac.gsKt > 80) || ac.military || db?.military) return null;
+    if (isAirlineCallsign(ac.callsign)) {
+      if (routeStatus !== 'unknown' && routeStatus !== 'implausible') return null;
+      return this.flightaware.route(ac.callsign, 'designator');
+    }
+    if (reg && this.getConfig().flightaware.generalAviation && IFR_CATEGORIES.has(typeInfo?.category)) {
+      return this.flightaware.route(reg, 'registration');
+    }
+    return null;
+  }
+
+  /**
+   * The flight so far for a plane someone tapped: adsb.lol's trace, with the
+   * start filled in from FlightAware (paid) when adsb.lol hasn't got it.
+   * `ac` is the aircraft as the tracker shows it (callsign, reg, route).
+   */
+  async trackFor(ac, { tapped = false } = {}) {
+    const track = await this.flightTracks.get(ac.hex);
+    if (!tapped || !this.flightaware.active || !this.getConfig().flightaware.tracks) return track;
+    const origin = ac.route?.origin;
+    const first = track?.points?.[0];
+    const complete =
+      first && (origin?.lat == null || distanceM(first[0], first[1], origin.lat, origin.lon) < TRACK_GAP_M);
+    if (complete) return track;
+    const ident = isAirlineCallsign(ac.callsign) ? ac.callsign : ac.reg;
+    if (!ident) return track;
+    const faRoute = ac.route?.faFlightId
+      ? ac.route
+      : await this.flightaware.resolve(ident, isAirlineCallsign(ac.callsign) ? 'designator' : 'registration');
+    const fa = faRoute?.faFlightId ? await this.flightaware.track(faRoute.faFlightId) : null;
+    if (!fa) return track;
+    // FlightAware's points up to where adsb.lol's begin.
+    const before = first ? fa.filter((p) => p[2] < first[2]) : fa;
+    return { points: [...before, ...(track?.points ?? [])], source: track ? 'FlightAware, adsb.lol' : 'FlightAware' };
+  }
+
   async saveCaches() {
     try {
       await Promise.all([this.routes.save(), this.photos.save(), this.airlines.save()]);
@@ -184,6 +257,7 @@ export class Enricher {
   async shutdown() {
     for (const t of this.timers) clearInterval(t);
     this.photos.stop();
+    this.flightaware.stop();
     await this.saveCaches();
   }
 
@@ -193,6 +267,8 @@ export class Enricher {
       routes: this.routes.status(),
       photos: this.photos.status(),
       flightTracks: this.flightTracks.status(),
+      flightaware: this.flightaware.status(),
+      airports: this.airports.size,
     };
   }
 }

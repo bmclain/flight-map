@@ -87,6 +87,44 @@ export const DEFAULT_CONFIG = {
       radiusKm: 30,
     },
   },
+  flightaware: {
+    // FlightAware AeroAPI (paid, per query) fills in routes the free sources
+    // don't know, with real take-off and landing times. Needs FLIGHTAWARE_API_KEY
+    // in the environment; never used with the simulator.
+    enabled: true,
+    // Hard monthly cap in US dollars. The Personal plan waives the first $5 a
+    // month ($10 for ADS-B feeders); stay under it and it costs nothing.
+    monthlyBudgetUsd: 4,
+    // Queries per minute (FlightAware allows 10 on the Personal plan).
+    perMinute: 6,
+    // Also look up business jets and turboprops by registration (they often
+    // fly filed IFR flight plans); light aircraft and helicopters never.
+    generalAviation: true,
+    // When a plane is tapped and adsb.lol hasn't got its earlier flight path.
+    tracks: true,
+  },
+  atc: {
+    // Air traffic control radio: transcribed, matched to aircraft, summed up
+    // on their cards. Needs the whisper speech-to-text service (see README).
+    enabled: false,
+    // 'folder' — audio files dropped into `folder` (default data/atc/inbox),
+    //            e.g. one per call from an SDR running rtl_airband
+    // 'stream' — a live audio stream at `streamUrl` (Icecast / HTTP MP3)
+    source: 'folder',
+    folder: '',
+    streamUrl: '',
+    whisperUrl: 'http://whisper:8080',
+    // Spoken name of the local facilities ("Saskatoon" Tower / Ground).
+    facility: '',
+    // Plain-English summaries by Claude when ANTHROPIC_API_KEY is set
+    // (otherwise a simpler rule-based line).
+    summaries: true,
+    // Play the plane's recent calls when its card comes up.
+    playAudio: true,
+    // Calls this recent show and play on the card; audio is kept for keepMinutes.
+    recentMinutes: 10,
+    keepMinutes: 60,
+  },
 };
 
 // ---- validators ------------------------------------------------------------
@@ -195,6 +233,25 @@ const SCHEMA = {
       radiusKm: num(2, 40),
     },
   },
+  flightaware: {
+    enabled: bool(),
+    monthlyBudgetUsd: num(0, 10),
+    perMinute: num(1, 8, { int: true }),
+    generalAviation: bool(),
+    tracks: bool(),
+  },
+  atc: {
+    enabled: bool(),
+    source: oneOf(['folder', 'stream']),
+    folder: str(500),
+    streamUrl: str(500),
+    whisperUrl: str(500),
+    facility: str(60),
+    summaries: bool(),
+    playAudio: bool(),
+    recentMinutes: num(1, 60),
+    keepMinutes: num(5, 1440),
+  },
 };
 
 /**
@@ -227,6 +284,12 @@ export function mergeConfig(base, patch, schema = SCHEMA, prefix = '') {
   }
   if (!prefix && out.display.minAltitudeFt > out.display.maxAltitudeFt) {
     errors.push({ field: 'display.minAltitudeFt', error: 'must be below the maximum altitude' });
+  }
+  if (!prefix && out.atc.source === 'stream' && out.atc.streamUrl && !/^https?:\/\/./.test(out.atc.streamUrl)) {
+    errors.push({ field: 'atc.streamUrl', error: 'must be an http(s) URL' });
+  }
+  if (!prefix && out.atc.whisperUrl && !/^https?:\/\/./.test(out.atc.whisperUrl)) {
+    errors.push({ field: 'atc.whisperUrl', error: 'must be an http(s) URL' });
   }
   if (!prefix && out.map.tiles === 'custom' && !/^https?:\/\/.+\{z\}.+/.test(out.map.customTileUrl)) {
     errors.push({ field: 'map.customTileUrl', error: 'must be a tile URL containing {z}, {x} and {y}' });

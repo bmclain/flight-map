@@ -9,7 +9,9 @@ where it's going and where to look. It cycles through the aircraft nearby, one a
 - **an arrow that points at it** from where you stand, plus how high to look ("Ahead, to the left · 32° up")
 - **distance, altitude (climbing/descending), speed, heading and typical seats** (or "Cargo" for freight airlines)
 - **estimated take-off time, landing time and flight duration**, worked out from the route and the plane's live
-  position and speed
+  position and speed, each shown in that airport's local time like a timetable ("Lands ≈ 1:50 AM +1")
+- **a "Did you know?" fact** about the type — its design, what it can do, or its history — a different one each time
+  that type comes round
 - a **map overview** every few aircraft, or always alongside in the split layout
 
 A **control panel** sets the cycle time, ranges, altitude filters, the screen's direction (with a "tap the plane you can
@@ -193,7 +195,34 @@ currently answers with an empty response; it's still selectable.)
 **Times are estimates.** The free databases have no schedules, so take-off and landing times are calculated from the
 distance flown and remaining at the aircraft's speed (typical cruise speed for the part we didn't see). Landing times
 are usually within about 15 minutes; take-off times are rougher. Exact times would need a paid flight-status API such
-as FlightAware AeroAPI.
+as FlightAware AeroAPI. Each time is in the local time of its airport (the time zone is looked up offline from the
+airport's position), with "+1" when the plane lands on a later local date than it took off.
+
+**Type facts** live in `shared/type-facts.js`, grouped by family with extra ones for particular variants. Every type in
+the curated table has at least one; add your own for the types you see most.
+
+### FlightAware (optional, paid per query)
+
+With a FlightAware [AeroAPI](https://www.flightaware.com/commercial/aeroapi/) key in `FLIGHTAWARE_API_KEY`, flights the
+free sources can't place get their route from FlightAware, with the real take-off time ("Took off 1:15 PM", no ≈) and
+FlightAware's landing estimate and delay. Business jets and turboprops are looked up by registration, since they often
+fly filed flight plans. When you tap a plane on the map and adsb.lol hasn't got the start of its flight, the start of
+the path comes from FlightAware too.
+
+AeroAPI charges per query ($0.005 for a flight, $0.012 for a flight path); the Personal plan waives the first $5 a
+month ($10 for ADS-B feeders). So Look Up is strict about it:
+
+- it asks only about planes in the air near you that adsb.im and adsbdb couldn't place (or placed wrongly), never about
+  light aircraft or helicopters, and never with the simulator;
+- every query is booked in `data/cache/flightaware-ledger.json` **before** it's sent, and refused once the month's
+  budget (Settings → FlightAware, default $4, at most $10) is used; the budget is spread evenly over the days left in
+  the month, so a busy afternoon can't use it all;
+- at most 6 queries a minute (FlightAware allows 10), one page per query (`max_pages=1`, a narrow time window, "next"
+  links never followed), and answers are cached for hours;
+- FlightAware's own usage figure (free to ask for) is checked hourly and used if it's higher than ours, e.g. when the
+  key is also used elsewhere. It can lag by a day, so the ledger is what keeps you inside the budget.
+
+Settings → Status shows what's been spent this month and today.
 
 ## Special aircraft
 
@@ -209,6 +238,58 @@ Set **Settings → Daily traffic → Local airport** (code, position and elevati
 departures go and where its arrivals come from, as shares of each day or the last 30 days. A flight counts when it's seen
 low near the airport (by default lower than 5,000 ft above it, within 30 km); its far end comes from its route. Flights
 that came low near the airport although their route doesn't use it, such as diversions, are listed separately.
+
+## Air traffic control radio
+
+Look Up can listen to the local tower and ground frequencies, work out which plane each call is to or from, and show
+what's happening on that plane's card in plain words ("Cleared to land on runway 27"), playing its recent calls as the
+card comes up. A pulsing **On the radio** panel replaces the type fact while a plane has been heard in the last 10
+minutes. Each screen can mute itself with its 🔊 button (or `?sound=off`).
+
+How it works: audio is split into separate calls at the quiet gaps between them, each call is transcribed by
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp) (primed with the callsigns of the planes nearby, which makes a big
+difference), and the callsign is matched against the aircraft being tracked: "WestJet three forty-seven" is WJA347,
+"Cessna Alpha Romeo Charlie" is C-FARC. Calls with no recognisable callsign are kept in the admin page's _Heard lately_
+list but not shown on cards. With `ANTHROPIC_API_KEY` set, Claude (Haiku 5.5) writes the one-line summary from the
+plane's last few calls and its altitude and speed; without it, a built-in phrase list is used. Summaries cost well under
+a cent an hour and are capped at 120 an hour.
+
+**Set up**
+
+1. Start the speech-to-text service: `docker compose up -d whisper` (see `docker-compose.yml`). It's built from source
+   so it runs on older CPUs without AVX2 and on the Raspberry Pi; the first start downloads the `small.en` model (about
+   490 MB). On a slow machine set `WHISPER_MODEL: base.en` (3× faster, a little less accurate).
+2. Optionally add `ANTHROPIC_API_KEY` to the `look-up` service's environment for the Claude summaries.
+3. In `/admin` → **Air traffic control radio**, tick _Listen_, set the local facility name (e.g. `Saskatoon`), and pick
+   where the audio comes from.
+
+**Where the audio comes from**
+
+- **Your own receiver (best).** A second RTL-SDR dongle with an airband antenna (118–137 MHz) and
+  [rtl_airband](https://github.com/rtl-airband/RTLSDR-Airband). Have it write one file per call into the inbox folder:
+
+  ```
+  devices: ({
+    type = "rtlsdr"; index = 1; gain = 35;
+    centerfreq = 119.1;            # one dongle covers ~2 MHz: here 118.3 tower + 119.9 departure
+    channels: (
+      { freq = 118.3; outputs: ({ type = "file"; directory = "/srv/look-up/data/atc/inbox";
+                                  filename_template = "yxe-twr"; split_on_transmission = true; }); },
+      { freq = 119.9; outputs: ({ type = "file"; directory = "/srv/look-up/data/atc/inbox";
+                                  filename_template = "yxe-dep"; split_on_transmission = true; }); }
+    );
+  });
+  ```
+
+  If the receiver runs on another machine (the Pi), use its Icecast output instead and set the source to _A live audio
+  stream_ with the Icecast URL; the calls are split out of the stream.
+
+- **Recordings.** Any audio file dropped into `data/atc/inbox` (MP3, WAV, M4A, OGG, FLAC) is split into calls,
+  transcribed and moved to `done/`. Handy for trying it out. A call is timed from when the file was written, so an old
+  recording is treated as if it just happened, and its callsigns only match planes that are around now.
+
+- **Online feeds.** LiveATC carries CYXE tower and ground, but its terms don't allow other apps to pull its streams
+  without permission, and its servers block automated access. Ask LiveATC before pointing Look Up at one of its feeds.
 
 ## Map background
 
@@ -228,32 +309,42 @@ a key to your own domains). Without a key the map simply has no background. With
 
 Everything is editable in `/admin` and stored in `data/config.json`. Changes reach open displays immediately.
 
-| Setting                                | Default                                               | Notes                                                                                      |
-| -------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `receiver.lat/lon/altitudeM`           | Seattle                                               | Where the antenna and screen are. Altitude is ground elevation, used for "look up" angles. |
-| `source.type`                          | `simulator`                                           | `aircraft-json` (your Pi), `adsb-api` (online), `simulator`                                |
-| `source.url`                           | `http://raspberrypi.local/tar1090/data/aircraft.json` | readsb / dump1090-fa / tar1090 `aircraft.json`                                             |
-| `source.apiUrl`                        | adsb.lol `/v2/point/{lat}/{lon}/{radiusNm}`           | any readsb-style API                                                                       |
-| `display.cycleSeconds`                 | 10                                                    | time per aircraft                                                                          |
-| `display.cycleRangeKm`                 | 24.14 (15 mi)                                         | only aircraft this close are cycled through                                                |
-| `display.min/maxAltitudeFt`            | 0 / 50,000                                            | e.g. skip high overflights you can't see                                                   |
-| `display.hideGround`                   | true                                                  |                                                                                            |
-| `display.spotlight.*`                  | off, 2 mi, below 8,000 ft                             | stick to very close aircraft                                                               |
-| `display.facingDeg`                    | 0                                                     | compass direction you face while looking at the screen                                     |
-| `display.units`                        | `imperial`                                            | `imperial` (mi, mph), `aviation` (nm, kt), `metric`                                        |
-| `display.theme`                        | `auto`                                                | `auto` follows sunrise/sunset at the receiver                                              |
-| `display.layout`                       | `card`                                                | `card` (map in between) or `split` (map always alongside)                                  |
-| `map.everyCards` / `map.seconds`       | 5 / 15                                                | 0 = never interleave the map                                                               |
-| `map.rangeKm`                          | 64.37 (40 mi)                                         | aircraft shown on the map                                                                  |
-| `map.orientation`                      | `north-up`                                            | or `facing-up`                                                                             |
-| `map.trailMinutes`                     | 30                                                    | how much of each plane's path to draw (0 = none, up to 180)                                |
-| `map.tiles` / `map.tileApiKey`         | `stadia` / empty                                      | `stadia`, `maptiler` or `carto` (free key needed), `osm`, `none` (offline), `custom`       |
-| `enrichment.photoMode`                 | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
-| `enrichment.routes` / `routeProviders` | on / adsb.im, adsbdb                                  |                                                                                            |
-| `enrichment.flightTracks`              | on                                                    | whole flight since take-off on the mini map, from adsb.lol                                 |
+| Setting                                  | Default                                               | Notes                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `receiver.lat/lon/altitudeM`             | Seattle                                               | Where the antenna and screen are. Altitude is ground elevation, used for "look up" angles. |
+| `source.type`                            | `simulator`                                           | `aircraft-json` (your Pi), `adsb-api` (online), `simulator`                                |
+| `source.url`                             | `http://raspberrypi.local/tar1090/data/aircraft.json` | readsb / dump1090-fa / tar1090 `aircraft.json`                                             |
+| `source.apiUrl`                          | adsb.lol `/v2/point/{lat}/{lon}/{radiusNm}`           | any readsb-style API                                                                       |
+| `display.cycleSeconds`                   | 10                                                    | time per aircraft                                                                          |
+| `display.cycleRangeKm`                   | 24.14 (15 mi)                                         | only aircraft this close are cycled through                                                |
+| `display.min/maxAltitudeFt`              | 0 / 50,000                                            | e.g. skip high overflights you can't see                                                   |
+| `display.hideGround`                     | true                                                  |                                                                                            |
+| `display.spotlight.*`                    | off, 2 mi, below 8,000 ft                             | stick to very close aircraft                                                               |
+| `display.facingDeg`                      | 0                                                     | compass direction you face while looking at the screen                                     |
+| `display.units`                          | `imperial`                                            | `imperial` (mi, mph), `aviation` (nm, kt), `metric`                                        |
+| `display.theme`                          | `auto`                                                | `auto` follows sunrise/sunset at the receiver                                              |
+| `display.layout`                         | `card`                                                | `card` (map in between) or `split` (map always alongside)                                  |
+| `map.everyCards` / `map.seconds`         | 5 / 15                                                | 0 = never interleave the map                                                               |
+| `map.rangeKm`                            | 64.37 (40 mi)                                         | aircraft shown on the map                                                                  |
+| `map.orientation`                        | `north-up`                                            | or `facing-up`                                                                             |
+| `map.trailMinutes`                       | 30                                                    | how much of each plane's path to draw (0 = none, up to 180)                                |
+| `map.tiles` / `map.tileApiKey`           | `stadia` / empty                                      | `stadia`, `maptiler` or `carto` (free key needed), `osm`, `none` (offline), `custom`       |
+| `enrichment.photoMode`                   | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
+| `enrichment.routes` / `routeProviders`   | on / adsb.im, adsbdb                                  |                                                                                            |
+| `enrichment.flightTracks`                | on                                                    | whole flight since take-off on the mini map, from adsb.lol                                 |
+| `flightaware.monthlyBudgetUsd`           | 4                                                     | hard monthly cap for AeroAPI queries (0–10; needs `FLIGHTAWARE_API_KEY`)                   |
+| `flightaware.perMinute`                  | 6                                                     | queries a minute (1–8)                                                                     |
+| `flightaware.generalAviation` / `tracks` | on / on                                               | look up business jets and turboprops; fill in a tapped plane's flight path                 |
+| `atc.enabled`                            | off                                                   | listen to air traffic control (see above)                                                  |
+| `atc.source`                             | `folder`                                              | `folder` (files in `atc.folder`, default `data/atc/inbox`) or `stream` (`atc.streamUrl`)   |
+| `atc.whisperUrl`                         | `http://whisper:8080`                                 | the whisper.cpp server                                                                     |
+| `atc.facility`                           | empty                                                 | local facility name as said on the radio ("Saskatoon")                                     |
+| `atc.summaries` / `atc.playAudio`        | on / on                                               | Claude summaries (with `ANTHROPIC_API_KEY`); play calls on the card                        |
+| `atc.recentMinutes` / `keepMinutes`      | 10 / 60                                               | how recent a call must be to show on a card; how long audio is kept                        |
 
 Environment variables: `PORT` (8080), `DATA_DIR` (`./data`), `ADMIN_PASSWORD` (if set, needed to change settings),
-and first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (ignored once `config.json` exists).
+`FLIGHTAWARE_API_KEY` (AeroAPI, see above), `ANTHROPIC_API_KEY` (Claude summaries of air traffic control calls), and
+first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (ignored once `config.json` exists).
 
 ## API
 
@@ -262,6 +353,8 @@ and first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_UR
 | `GET /api/stream`              | Server-Sent Events: `hello`, then `aircraft` every second, `config` on change  |
 | `GET /api/aircraft`            | enriched aircraft in range, nearest first (`?trails` for position history)     |
 | `GET /api/aircraft/:hex/track` | the flight since take-off (adsb.lol) for an aircraft being tracked             |
+| `GET /api/aircraft/:hex/radio` | its air traffic control calls lately, with transcripts and audio               |
+| `GET /api/atc/recent`          | the last 50 calls heard, matched or not                                        |
 | `GET /api/config` / `PUT`      | read / update settings (PUT accepts partial objects; 400 lists invalid fields) |
 | `GET /api/status`              | receiver feed, databases, lookup caches, connected displays                    |
 | `POST /api/source/test`        | try a source config once, without saving it                                    |
@@ -273,7 +366,7 @@ npm run dev      # restart on changes
 npm test         # unit + API tests (node:test, no network needed)
 ```
 
-Layout: `server/` (sources, tracker, enrichment, HTTP), `shared/` (geometry, units and cycling logic used by both server
+Layout: `server/` (sources, tracker, enrichment, air traffic control in `server/atc/`, HTTP), `shared/` (geometry, units and cycling logic used by both server
 and browser), `public/` (display and control panel, plain ES modules), `test/`.
 
 ## Credits

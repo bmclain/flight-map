@@ -4,6 +4,7 @@
 //   - adsbdb.com (also returns the airline name and IATA flight number)
 // Results are cached for hours; a route is checked against the aircraft's
 // position so obviously stale routes can be hidden.
+import tzlookup from '@photostructure/tz-lookup';
 import { distanceM, routeDetourM } from '../../shared/geo.js';
 import { fetchJson, RateLimiter } from '../util/fetch.js';
 import { TtlCache } from '../util/cache.js';
@@ -89,6 +90,26 @@ export function normalizeAdsbdbRoute(json) {
   };
 }
 
+const zones = new Map();
+
+/** IANA time zone at an airport ("America/Regina"), so the card can show its local time. */
+export function airportTimeZone(ap) {
+  if (ap?.lat == null || ap?.lon == null) return null;
+  const key = `${ap.lat},${ap.lon}`;
+  if (!zones.has(key)) {
+    let tz = null;
+    try {
+      tz = tzlookup(ap.lat, ap.lon);
+    } catch {
+      // Out-of-range coordinates: leave the time in the viewer's zone.
+    }
+    zones.set(key, tz);
+  }
+  return zones.get(key);
+}
+
+const withTimeZone = (ap) => (ap.tz !== undefined ? ap : { ...ap, tz: airportTimeZone(ap) });
+
 /**
  * Choose the leg of a (possibly multi-stop) route the aircraft is most likely
  * flying, and judge whether the route fits the aircraft's position at all.
@@ -107,8 +128,8 @@ export function resolveLeg(route, pos) {
       }
     }
   }
-  const origin = aps[i];
-  const destination = aps[i + 1];
+  const origin = withTimeZone(aps[i]);
+  const destination = withTimeZone(aps[i + 1]);
   let plausible = true;
   if (havePos) {
     const leg = distanceM(origin.lat, origin.lon, destination.lat, destination.lon);

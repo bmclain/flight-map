@@ -7,13 +7,34 @@ const NOISE = [
   /^\s*(thank you|thanks for watching|you|bye|okay|uh|um|hmm)[.!]?\s*$/i,
 ];
 
-/** Clean up a transcript; '' when it's only noise. */
-export function cleanTranscript(text) {
+const wordsOf = (s) => s.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+
+/**
+ * Clean up a transcript; '' when it's only noise. Over static, Whisper also
+ * repeats one word over and over ("Roar, Roar, Roar…") or reads back the
+ * names it was primed with ("Saskatoon Tower, Saskatoon Ground, Saskatoon…"):
+ * a transcript that's mostly that is dropped too.
+ */
+export function cleanTranscript(text, prompt = '') {
   const t = String(text ?? '')
     .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ')
+    .replace(/^\s*>>\s*/, '')
     .replace(/\s+/g, ' ')
     .trim();
   if (!t || NOISE.some((re) => re.test(t))) return '';
+  const words = wordsOf(t);
+  // One word four or more times in a row.
+  let run = 1;
+  for (let i = 1; i < words.length; i++) {
+    run = words[i] === words[i - 1] ? run + 1 : 1;
+    if (run >= 4) return '';
+  }
+  // Mostly the priming names.
+  const primed = new Set(wordsOf(prompt));
+  if (primed.size && words.length >= 3) {
+    const own = words.filter((w) => !primed.has(w));
+    if (own.length / words.length < 0.3) return '';
+  }
   return t;
 }
 
@@ -42,6 +63,6 @@ export class WhisperClient {
     if (!res.ok) throw new Error(`whisper: HTTP ${res.status}`);
     const json = await res.json();
     if (json.error) throw new Error(`whisper: ${json.error}`);
-    return cleanTranscript(json.text);
+    return cleanTranscript(json.text, prompt);
   }
 }

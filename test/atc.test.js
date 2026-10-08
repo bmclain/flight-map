@@ -73,13 +73,24 @@ test('callsigns are matched to nearby aircraft, as Whisper wrote them', () => {
   assert.equal(who('November one two three alpha bravo, taxi to runway 27')?.hex, 'a12345');
   assert.equal(who('three alpha bravo, roger')?.hex, 'a12345', 'abbreviated US registration');
   assert.equal(who('WestJet three forty-seven, contact departure')?.hex, 'c0ffee', 'number said in pairs');
+  // From the real CYXE recording: Rise Air broadcasts RS193 but is "Riser" on the radio.
+  const withRise = [...NEARBY, { hex: 'c0r193', callsign: 'RS193', reg: 'C-GGCA' }];
+  assert.equal(who('Riser 193, Touch Hill, Fires.', withRise)?.hex, 'c0r193', 'flight number alone');
+  assert.equal(who('turn left heading 193', withRise), null, 'a heading is not a flight number');
+  // "Westjet 63" for 603, when no other WestJet nearby is that close.
+  const westjets = [
+    { hex: 'c00603', callsign: 'WJA603', telephony: 'WESTJET' },
+    { hex: 'c00617', callsign: 'WJA617', telephony: 'WESTJET' },
+  ];
+  assert.equal(who('Westjet 63, hello.', westjets)?.hex, 'c00603', 'one digit misheard');
+  assert.equal(who('Westjet 613, hello.', westjets), null, 'one digit off two flights: could be either');
   const withDelta = [...NEARBY, { hex: 'a01049', callsign: 'DAL1049', telephony: 'DELTA' }];
   assert.equal(who('Delta ten forty-nine, descend and maintain six thousand', withDelta)?.hex, 'a01049');
 });
 
 test('callsign matching avoids false hits', () => {
   assert.equal(who('Taxi to runway 33, Myra alpha, Hold short on runway 27.'), null, 'no callsign heard');
-  assert.equal(who('WestJet 348, cleared to land'), null, 'wrong flight number');
+  assert.equal(who('WestJet 358, cleared to land'), null, 'a different flight number');
   assert.equal(who('descend and maintain 4000, information bravo'), null);
   // "Romeo Charlie" alone fits C-FARC, but not once another plane ends in RC too.
   assert.equal(who('Romeo Charlie, roger')?.hex, 'c0farc');
@@ -135,6 +146,14 @@ test('whisper noise is dropped', () => {
   assert.equal(cleanTranscript('[BLANK_AUDIO]'), '');
   assert.equal(cleanTranscript(' Thank you. '), '');
   assert.equal(cleanTranscript('(static) WestJet 347 roger'), 'WestJet 347 roger');
+  // Real Whisper output from the CYXE recording.
+  assert.equal(cleanTranscript('Roar, Roar, Roar, Roar, Roar! MicroMia Bravo, contact ground'), '');
+  const prompt = 'Saskatoon Tower, Saskatoon Ground. Westjet 603, Jazz 712.';
+  assert.equal(cleanTranscript('Tower, Saskatoon Tower, Saskatoon Ground, Saskatoon, Saskatoon.', prompt), '');
+  assert.equal(
+    cleanTranscript('Westjet 603, Saskatoon Tower, cleared to land runway 27.', prompt),
+    'Westjet 603, Saskatoon Tower, cleared to land runway 27.',
+  );
 });
 
 /** `ms` of a tone (or silence) with a little background hiss. */
@@ -185,6 +204,27 @@ test('the segmenter cuts calls at the quiet gaps between them', () => {
   assert.equal(wav.toString('ascii', 0, 4), 'RIFF');
   assert.equal(wav.readUInt32LE(24), SAMPLE_RATE);
   assert.equal(wav.length, 44 + segs[0].pcm.length * 2);
+});
+
+test('a squelched feed is split at short silences, not at pauses in speech', () => {
+  const segs = [];
+  const seg = new Segmenter({ onSegment: (s) => segs.push(s) });
+  const silence = (ms) => new Int16Array((ms / 1000) * SAMPLE_RATE); // squelch closed: digital zero
+  // Controller (with a 400 ms hiss-only pause mid-sentence), 300 ms of squelch, pilot answers.
+  seg.push(
+    join(
+      silence(1000),
+      tone(1500, 8000),
+      tone(400, 0),
+      tone(1200, 8000),
+      silence(300),
+      tone(2000, 7000),
+      silence(1500),
+    ),
+  );
+  seg.flush();
+  assert.equal(segs.length, 2, 'two transmissions');
+  assert.ok(segs[0].pcm.length / SAMPLE_RATE > 3, 'the pause stayed inside the first');
 });
 
 test('the segmenter splits a call that never stops', () => {
@@ -255,11 +295,45 @@ test('summaries use Claude Haiku at low effort and fall back quietly', async () 
   assert.equal(await broken.summarize(input), null);
   assert.equal(broken.status().lastError.message, 'network down');
 
-  const capped = new Summarizer({ log: quietLog, client: fakeClaude(textReply('ok')), maxPerHour: 1 });
+  const capped = new Summarizer({
+    log: quietLog,
+    client: fakeClaude(textReply('ok')),
+    limits: () => ({ budget: 2, perHour: 1 }),
+  });
   assert.equal(await capped.summarize(input), 'ok');
   assert.equal(await capped.summarize(input), null, 'over the hourly cap');
+  assert.equal(capped.status().lastRefusal.reason, 'hourly limit');
 
   assert.equal(new Summarizer({ log: quietLog, env: {} }).available, false, 'no API key: rules only');
+});
+
+test('Claude summaries are paid for out of a hard budget, at the real cost', async () => {
+  const dir = await tmpDir();
+  const calls = [];
+  const s = new Summarizer({
+    log: quietLog,
+    dataDir: dir,
+    client: fakeClaude(textReply('Lining up to land.'), calls),
+    limits: () => ({ budget: 0.5, perHour: 100 }),
+  });
+  await s.init();
+  const input = { transmissions: [{ at: Date.now(), role: 'to', text: 'cleared to land runway 27' }] };
+  assert.equal(await s.summarize(input), 'Lining up to land.');
+  assert.equal(calls[0].max_tokens, 1000);
+  // Booked at the most it could cost, then corrected to 300 in + 20 out at Haiku 5.5 prices.
+  assert.equal(s.status().spentThisMonthUsd, (300 * 0.1 + 20 * 0.5) / 1e6);
+  // It's on disk, so a restart remembers.
+  const again = new Summarizer({ log: quietLog, dataDir: dir, client: fakeClaude(textReply('x')) });
+  await again.init();
+  assert.equal(again.status().spentThisMonthUsd, s.status().spentThisMonthUsd);
+
+  const broke = new Summarizer({
+    log: quietLog,
+    client: fakeClaude(textReply('never')),
+    limits: () => ({ budget: 0, perHour: 100 }),
+  });
+  assert.equal(await broke.summarize(input), null, 'no budget, no request');
+  assert.match(broke.status().lastRefusal.reason, /budget/);
 });
 
 test('the ATC service files transcripts under aircraft and sums them up', async () => {
@@ -308,10 +382,7 @@ test('the ATC service files transcripts under aircraft and sums them up', async 
   assert.match(calls[0].messages[0].content, /Pilot: Cleared to land runway 27/);
 
   // Hints for the recogniser: local facilities, then nearby flights.
-  assert.match(
-    atc.hintPrompt(NEARBY),
-    /^Saskatoon Tower, Saskatoon Ground, .*\. Westjet 347, Jazz 712, Air Canada 853/,
-  );
+  assert.match(atc.hintPrompt(NEARBY), /^Saskatoon Tower, Saskatoon Ground\. Westjet 347, Jazz 712, Air Canada 853/);
 
   // Old calls are forgotten.
   await atc.prune(now + 61 * 60_000);

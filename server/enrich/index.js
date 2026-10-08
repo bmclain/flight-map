@@ -159,7 +159,14 @@ export class Enricher {
     if (!op) return null;
     const opName = cleanAirlineName(op.n);
     const listed = this.airlines.get(icao, opName);
-    return { icao, name: listed?.name ?? opName, country: op.c ?? null, iata: listed?.iata ?? null, brand: null, radio };
+    return {
+      icao,
+      name: listed?.name ?? opName,
+      country: op.c ?? null,
+      iata: listed?.iata ?? null,
+      brand: null,
+      radio,
+    };
   }
 
   /**

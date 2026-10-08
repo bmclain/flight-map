@@ -21,7 +21,7 @@ services:
 
   # Speech-to-text for the air traffic control radio feature (optional).
   # Built from source so it runs on CPUs without AVX2 and on the Raspberry Pi.
-  # The first start downloads the model (~490 MB for small.en) into ./data/whisper.
+  # The first start downloads the model (~570 MB) into ./data/whisper.
   whisper:
     build: ./whisper
     container_name: look-up-whisper
@@ -29,5 +29,8 @@ services:
     volumes:
       - ./data/whisper:/models
     environment:
-      WHISPER_MODEL: small.en
-      WHISPER_THREADS: '8'
+      # large-v3-turbo hears callsigns far better than small.en; on a slow
+      # machine use small.en (3x faster) and drop WHISPER_ARGS.
+      WHISPER_MODEL: large-v3-turbo-q5_0
+      WHISPER_THREADS: '16'
+      WHISPER_ARGS: --audio-ctx 768

@@ -620,7 +620,9 @@ function atcTile(atc) {
     src.type === 'stream' ? (src.connected ? 'Stream connected' : 'Stream not connected') : 'Watching folder';
   const sum = atc.summaries;
   const summaries = sum.available
-    ? `Claude summaries: ${sum.requests} so far${sum.lastError ? ` · last error: ${sum.lastError.message}` : ''}`
+    ? `Claude: ${usd(sum.spentThisMonthUsd)} of ${usd(sum.budgetUsd)} this month, ${sum.requests} summaries since restart${
+        sum.lastError ? ` · last error: ${sum.lastError.message}` : ''
+      }`
     : 'Built-in summaries (no Anthropic API key)';
   return tile(
     'Air traffic control',

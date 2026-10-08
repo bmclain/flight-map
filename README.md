@@ -246,19 +246,28 @@ what's happening on that plane's card in plain words ("Cleared to land on runway
 card comes up. A pulsing **On the radio** panel replaces the type fact while a plane has been heard in the last 10
 minutes. Each screen can mute itself with its 🔊 button (or `?sound=off`).
 
-How it works: audio is split into separate calls at the quiet gaps between them, each call is transcribed by
+How it works: audio is split into separate calls where the squelch closes between them (a fifth of a second of
+silence; pauses in speech keep their radio hiss), each call is transcribed by
 [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (primed with the callsigns of the planes nearby, which makes a big
 difference), and the callsign is matched against the aircraft being tracked: "WestJet three forty-seven" is WJA347,
-"Cessna Alpha Romeo Charlie" is C-FARC. Calls with no recognisable callsign are kept in the admin page's _Heard lately_
+"Cessna Alpha Romeo Charlie" is C-FARC, "Riser 193" is RS193 (a flight number alone counts when only one plane nearby
+has it), and "Westjet 63" is WJA603 when no other WestJet nearby is one digit off. Calls with no recognisable callsign are kept in the admin page's _Heard lately_
 list but not shown on cards. With `ANTHROPIC_API_KEY` set, Claude (Haiku 5.5) writes the one-line summary from the
-plane's last few calls and its altitude and speed; without it, a built-in phrase list is used. Summaries cost well under
-a cent an hour and are capped at 120 an hour.
+plane's last few calls and its altitude and speed; without it, a built-in phrase list is used. A summary costs about
+$0.0003; they're only written for planes close enough to get a card, at most 30 an hour, out of a hard monthly budget
+(default $2, spread over the days left; Settings → Air traffic control radio).
+
+**What to expect.** Tested on a real 35-minute CYXE Ground/Tower recording (243 calls): the large model hears about
+twice as many callsigns as `small.en`, but plenty still come out garbled, and much of the traffic at a training airport
+is small planes in the circuit that don't broadcast ADS-B, so there's no plane on the display to match them to. Calls
+with airliners, charters and anything with ADS-B are the ones that land on cards.
 
 **Set up**
 
 1. Start the speech-to-text service: `docker compose up -d whisper` (see `docker-compose.yml`). It's built from source
-   so it runs on older CPUs without AVX2 and on the Raspberry Pi; the first start downloads the `small.en` model (about
-   490 MB). On a slow machine set `WHISPER_MODEL: base.en` (3× faster, a little less accurate).
+   so it runs on older CPUs without AVX2 and on the Raspberry Pi; the first start downloads the `large-v3-turbo-q5_0`
+   model (about 570 MB). It takes about 8 s a call on 16 older Xeon cores, which keeps up with a busy tower; on a slower
+   machine set `WHISPER_MODEL: small.en` and remove `WHISPER_ARGS` (3× faster, about half as many callsigns heard).
 2. Optionally add `ANTHROPIC_API_KEY` to the `look-up` service's environment for the Claude summaries.
 3. In `/admin` → **Air traffic control radio**, tick _Listen_, set the local facility name (e.g. `Saskatoon`), and pick
    where the audio comes from.

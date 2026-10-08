@@ -2,7 +2,9 @@
 // by Claude from its recent transmissions and what we can see of the flight.
 // Needs ANTHROPIC_API_KEY (or another Anthropic credential) in the environment;
 // without it the rule-based line from phrases.js is used.
+import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
+import { SpendLedger } from '../util/ledger.js';
 
 export const SUMMARY_MODEL = 'claude-haiku-5-5';
 
@@ -41,42 +43,91 @@ export function summaryPrompt({ aircraft, transmissions, facility, now = Date.no
   return `Airport: ${facility || 'local airport'}\n${flight.join('\n')}\n\nRadio calls, oldest first:\n${calls.join('\n')}`;
 }
 
+// Haiku 5.5 list prices, USD per million tokens (prompts under 100K tokens).
+export const PRICES = { 'claude-haiku-5-5': { input: 0.1, output: 0.5 } };
+const MAX_TOKENS = 1000;
+const costOf = (model, input, output) => {
+  const p = PRICES[model];
+  return (input * p.input + output * p.output) / 1e6;
+};
+
 export class Summarizer {
-  constructor({ log = console, client = null, model = SUMMARY_MODEL, maxPerHour = 120, env = process.env }) {
+  /**
+   * @param {object} opts
+   * @param {() => {budget: number, perHour: number}} [opts.limits]  monthly budget in US$ and requests an hour
+   * @param {string} [opts.dataDir]  where the spending ledger is kept (none: in memory only, for tests)
+   */
+  constructor({ log = console, client = null, model = SUMMARY_MODEL, env = process.env, dataDir = null, limits }) {
     this.log = log;
     this.model = model;
-    this.maxPerHour = maxPerHour;
+    this.limits = limits ?? (() => ({ budget: 2, perHour: 30 }));
     this.calls = []; // times of recent requests, for the hourly cap
     this.client = client;
     if (!this.client) {
       const hasCredential = env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
       this.client = hasCredential ? new Anthropic() : null;
     }
-    this.state = { requests: 0, failures: 0, lastError: null, inputTokens: 0, outputTokens: 0 };
+    this.ledger = new SpendLedger({
+      file: dataDir ? path.join(dataDir, 'cache', 'anthropic-ledger.json') : null,
+      log,
+      name: 'atc summary',
+    });
+    this.state = {
+      requests: 0,
+      failures: 0,
+      refused: 0,
+      lastRefusal: null,
+      lastError: null,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+  }
+
+  async init() {
+    if (this.ledger.file) await this.ledger.load();
   }
 
   get available() {
     return !!this.client;
   }
 
-  /** A sentence, or null (not set up, over the hourly cap, unclear, or failed). */
+  /** Why a request can't be made now (budget, today's share, hourly cap), or null. */
+  #refusal(estimate, now) {
+    const { budget, perHour } = this.limits();
+    this.calls = this.calls.filter((t) => now - t < 3600_000);
+    if (this.calls.length >= perHour) return 'hourly limit';
+    return this.ledger.refusal(estimate, { budget, perMinute: 3 }, now)?.reason ?? null;
+  }
+
+  /** A sentence, or null (not set up, over budget or the hourly cap, unclear, or failed). */
   async summarize(input) {
     if (!this.client) return null;
     const now = Date.now();
-    this.calls = this.calls.filter((t) => now - t < 3600_000);
-    if (this.calls.length >= this.maxPerHour) return null;
+    const prompt = summaryPrompt(input);
+    // Book the most it could cost (a generous guess at the prompt, every output
+    // token used), then correct it to the real cost from the token counts.
+    const estimate = costOf(this.model, Math.ceil((SYSTEM.length + prompt.length) / 2.5), MAX_TOKENS);
+    const refused = this.#refusal(estimate, now);
+    if (refused) {
+      this.state.refused++;
+      this.state.lastRefusal = { reason: refused, at: now };
+      return null;
+    }
     this.calls.push(now);
+    await this.ledger.charge('messages', estimate, now);
     this.state.requests++;
     try {
       const response = await this.client.messages.create({
         model: this.model,
-        max_tokens: 2000,
+        max_tokens: MAX_TOKENS,
         output_config: { effort: 'low' },
         system: SYSTEM,
-        messages: [{ role: 'user', content: summaryPrompt(input) }],
+        messages: [{ role: 'user', content: prompt }],
       });
-      this.state.inputTokens += response.usage?.input_tokens ?? 0;
-      this.state.outputTokens += response.usage?.output_tokens ?? 0;
+      const used = response.usage ?? {};
+      this.state.inputTokens += used.input_tokens ?? 0;
+      this.state.outputTokens += used.output_tokens ?? 0;
+      await this.ledger.adjust(costOf(this.model, used.input_tokens ?? 0, used.output_tokens ?? MAX_TOKENS) - estimate);
       if (response.stop_reason === 'refusal') return null;
       const text = response.content
         .filter((b) => b.type === 'text')
@@ -104,6 +155,16 @@ export class Summarizer {
   }
 
   status() {
-    return { available: this.available, model: this.model, ...this.state };
+    const { budget } = this.limits();
+    const left = this.ledger.allowance(budget);
+    return {
+      available: this.available,
+      model: this.model,
+      budgetUsd: budget,
+      spentThisMonthUsd: this.ledger.state.spent,
+      spentTodayUsd: this.ledger.spentToday(),
+      leftTodayUsd: left.today,
+      ...this.state,
+    };
   }
 }

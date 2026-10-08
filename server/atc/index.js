@@ -31,7 +31,14 @@ export class AtcService {
     this.candidates = candidates;
     this.log = log;
     this.fetch = fetchImpl;
-    this.summarizer = summarizer ?? new Summarizer({ log, env });
+    this.summarizer =
+      summarizer ??
+      new Summarizer({
+        log,
+        env,
+        dataDir,
+        limits: () => ({ budget: this.cfg.summaryBudgetUsd, perHour: this.cfg.summariesPerHour }),
+      });
     this.transmissions = []; // oldest first
     this.summaries = new Map(); // hex → { text, at, source }
     this.summaryTimers = new Map();
@@ -47,6 +54,7 @@ export class AtcService {
 
   async start() {
     await fs.mkdir(this.clipDir, { recursive: true });
+    await this.summarizer.init?.();
     this.restart();
     this.pruneTimer = setInterval(() => this.prune(), 60_000);
     this.pruneTimer.unref?.();
@@ -77,22 +85,35 @@ export class AtcService {
     for (const t of this.summaryTimers.values()) clearTimeout(t);
   }
 
+  /**
+   * Queue a transmission; resolves once it's been handled. Calls from a live
+   * stream that has fallen behind (whisper down or slow) are dropped oldest
+   * first — they're stale anyway; calls from a file wait their turn (the
+   * folder source feeds them one at a time).
+   */
   #enqueue(t) {
     this.state.heard++;
-    this.queue.push(t);
-    // Fall behind (whisper down or slow) and the oldest calls are stale anyway.
-    while (this.queue.length > MAX_QUEUE) {
-      this.queue.shift();
-      this.state.dropped++;
-    }
-    this.#work();
+    return new Promise((resolve) => {
+      this.queue.push({ t, resolve });
+      const live = () => this.queue.filter((q) => !q.t.fromFile);
+      while (live().length > MAX_QUEUE) {
+        const drop = live()[0];
+        this.queue.splice(this.queue.indexOf(drop), 1);
+        drop.resolve(null);
+        this.state.dropped++;
+      }
+      this.#work();
+    });
   }
 
   async #work() {
     if (this.working) return;
     this.working = true;
     try {
-      while (this.queue.length) await this.handle(this.queue.shift());
+      while (this.queue.length) {
+        const { t, resolve } = this.queue.shift();
+        resolve(await this.handle(t).catch(() => null));
+      }
     } finally {
       this.working = false;
     }
@@ -108,10 +129,13 @@ export class AtcService {
     }
   }
 
+  /**
+   * Names to prime the recogniser with: the local facilities and the planes
+   * nearby. Kept short: on static, Whisper tends to read the prompt back.
+   */
   hintPrompt(aircraft) {
     const place = this.cfg.facility || 'the airport';
-    const facilities = ['Tower', 'Ground', 'Terminal', 'Departure', 'Arrival'].map((f) => `${place} ${f}`);
-    return `${facilities.join(', ')}. ${hintPhrases(aircraft).join(', ')}.`;
+    return `${place} Tower, ${place} Ground. ${hintPhrases(aircraft).join(', ')}.`;
   }
 
   /** Transcribe one transmission and file it under its aircraft. */
@@ -184,6 +208,9 @@ export class AtcService {
     const transmissions = this.#forAircraft(hex, now).slice(-8);
     if (!transmissions.length) return null;
     const aircraft = this.#nearby().find((a) => a.hex === hex);
+    // Only for planes close enough to come up on a card: no paying for lines nobody sees.
+    const cardKm = this.getConfig().display.cycleRangeKm * 1.5;
+    if (aircraft?.distanceKm != null && aircraft.distanceKm > cardKm) return null;
     const text = await this.summarizer.summarize({ aircraft, transmissions, facility: this.cfg.facility, now });
     if (text) this.summaries.set(hex, { text, at: Date.now(), source: 'claude' });
     return text;

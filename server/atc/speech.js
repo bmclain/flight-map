@@ -190,9 +190,13 @@ const nameMatches = (heard, name) => heard === name || (name.length >= 5 && leve
  *   `telephony` is the airline's radio name ("WESTJET") for airline callsigns.
  */
 export function spokenForms(ac) {
-  const forms = { hex: ac.hex, names: [], number: null, regs: [] };
+  const forms = { hex: ac.hex, names: [], number: null, bareNumber: null, regs: [] };
   const cs = (ac.callsign ?? '').toUpperCase().replace(/\s/g, '');
   const flight = /^([A-Z]{3})(\d[0-9A-Z]*)$/.exec(cs);
+  // A flight whose radio name we don't know ("RS193" is Rise Air, said "Riser 193"):
+  // its number alone may identify it.
+  const odd = /^[A-Z]{1,3}(\d{3,4})$/.exec(cs);
+  if (odd && !(flight && ac.telephony)) forms.bareNumber = odd[1];
   if (flight && ac.telephony) {
     const parts = words(ac.telephony);
     forms.number = flight[2].replace(/^0+(?=\d)/, '');
@@ -261,6 +265,23 @@ export function findCallsign(tokens, candidates) {
           }
         }
       }
+      // The right airline with a digit misheard ("Westjet 63" for 603): only
+      // when no other plane nearby is that close (checked below).
+      for (let i = 1; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (!t.alnum || !/^\d+$/.test(t.word) || t.word === num || levenshtein(t.word, num) !== 1) continue;
+        const heard = tokens[i - 1].word.toLowerCase();
+        if (f.names.some((n) => nameMatches(heard, n))) {
+          hits.push({ hex: f.hex, index: i - 1, length: 2, strength: 1, tail: `~${i}` });
+        }
+      }
+    }
+    // A flight number on its own, not a heading, runway, altitude or frequency.
+    if (f.bareNumber) {
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].word !== f.bareNumber || (i > 0 && NUMBER_WORDS.has(tokens[i - 1].word))) continue;
+        hits.push({ hex: f.hex, index: i, length: 1, strength: 1, tail: `#${f.bareNumber}` });
+      }
     }
     // Registrations, in full or by their last three ("C-FARC": FARC, CFARC, ARC).
     for (const reg of f.regs) {
@@ -276,13 +297,38 @@ export function findCallsign(tokens, candidates) {
       }
     }
   }
-  // A short tail ("Romeo Charlie") only counts when it fits one aircraft alone.
+  // A short tail ("Romeo Charlie"), a bare number or a near miss only counts
+  // when it fits one aircraft alone.
   const usable = hits.filter((h) => h.strength > 1 || hits.filter((o) => o.tail === h.tail).length === 1);
   if (!usable.length) return null;
   usable.sort((a, b) => a.index - b.index || b.strength - a.strength);
   const { hex, index, length } = usable[0];
   return { hex, index, length };
 }
+
+// Words that come before numbers that aren't callsigns.
+const NUMBER_WORDS = new Set([
+  'heading',
+  'runway',
+  'squawk',
+  'maintain',
+  'level',
+  'decimal',
+  'point',
+  'wind',
+  'at',
+  'altimeter',
+  'contact',
+  'climb',
+  'descend',
+  'to',
+  'and',
+  'information',
+  'speed',
+  'knots',
+  'feet',
+  'time',
+]);
 
 const FACILITY = new Set([
   'tower',

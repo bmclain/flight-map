@@ -81,6 +81,9 @@ skipped. Every few cards (default 5) the **map** is shown for a while. When noth
 map (or a clock) with the nearest traffic.
 
 - **Tap the right side** (or swipe left, or press →) for the next aircraft. **Tap the left side** (or ←) goes back.
+- **Your antenna or the online feed.** With _Also fill in the planes my antenna doesn't hear_ (Settings → Aircraft
+  data), each card says _Your antenna_ or _adsb.lol only_, planes only the online feed has are hollow on the map, and
+  the footer and Settings show how much of the sky your antenna catches.
 - **Tap a plane on the map** for a pop-up with everything on its card and a small photo (its route and photo are looked
   up even if it's far away). _Show full card_ switches to its card; the map stays up while the pop-up is open.
 - **Tap anywhere** to bring up controls: hold on this aircraft (space), stay on the map until pressed again (M), light /
@@ -318,38 +321,40 @@ a key to your own domains). Without a key the map simply has no background. With
 
 Everything is editable in `/admin` and stored in `data/config.json`. Changes reach open displays immediately.
 
-| Setting                                  | Default                                               | Notes                                                                                      |
-| ---------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `receiver.lat/lon/altitudeM`             | Seattle                                               | Where the antenna and screen are. Altitude is ground elevation, used for "look up" angles. |
-| `source.type`                            | `simulator`                                           | `aircraft-json` (your Pi), `adsb-api` (online), `simulator`                                |
-| `source.url`                             | `http://raspberrypi.local/tar1090/data/aircraft.json` | readsb / dump1090-fa / tar1090 `aircraft.json`                                             |
-| `source.apiUrl`                          | adsb.lol `/v2/point/{lat}/{lon}/{radiusNm}`           | any readsb-style API                                                                       |
-| `display.cycleSeconds`                   | 10                                                    | time per aircraft                                                                          |
-| `display.cycleRangeKm`                   | 24.14 (15 mi)                                         | only aircraft this close are cycled through                                                |
-| `display.min/maxAltitudeFt`              | 0 / 50,000                                            | e.g. skip high overflights you can't see                                                   |
-| `display.hideGround`                     | true                                                  |                                                                                            |
-| `display.spotlight.*`                    | off, 2 mi, below 8,000 ft                             | stick to very close aircraft                                                               |
-| `display.facingDeg`                      | 0                                                     | compass direction you face while looking at the screen                                     |
-| `display.units`                          | `imperial`                                            | `imperial` (mi, mph), `aviation` (nm, kt), `metric`                                        |
-| `display.theme`                          | `auto`                                                | `auto` follows sunrise/sunset at the receiver                                              |
-| `display.layout`                         | `card`                                                | `card` (map in between) or `split` (map always alongside)                                  |
-| `map.everyCards` / `map.seconds`         | 5 / 15                                                | 0 = never interleave the map                                                               |
-| `map.rangeKm`                            | 64.37 (40 mi)                                         | aircraft shown on the map                                                                  |
-| `map.orientation`                        | `north-up`                                            | or `facing-up`                                                                             |
-| `map.trailMinutes`                       | 30                                                    | how much of each plane's path to draw (0 = none, up to 180)                                |
-| `map.tiles` / `map.tileApiKey`           | `stadia` / empty                                      | `stadia`, `maptiler` or `carto` (free key needed), `osm`, `none` (offline), `custom`       |
-| `enrichment.photoMode`                   | `airframe`                                            | `airframe`, `type`, `off`                                                                  |
-| `enrichment.routes` / `routeProviders`   | on / adsb.im, adsbdb                                  |                                                                                            |
-| `enrichment.flightTracks`                | on                                                    | whole flight since take-off on the mini map, from adsb.lol                                 |
-| `flightaware.monthlyBudgetUsd`           | 4                                                     | hard monthly cap for AeroAPI queries (0–10; needs `FLIGHTAWARE_API_KEY`)                   |
-| `flightaware.perMinute`                  | 6                                                     | queries a minute (1–8)                                                                     |
-| `flightaware.generalAviation` / `tracks` | on / on                                               | look up business jets and turboprops; fill in a tapped plane's flight path                 |
-| `atc.enabled`                            | off                                                   | listen to air traffic control (see above)                                                  |
-| `atc.source`                             | `folder`                                              | `folder` (files in `atc.folder`, default `data/atc/inbox`) or `stream` (`atc.streamUrl`)   |
-| `atc.whisperUrl`                         | `http://whisper:8080`                                 | the whisper.cpp server                                                                     |
-| `atc.facility`                           | empty                                                 | local facility name as said on the radio ("Saskatoon")                                     |
-| `atc.summaries` / `atc.playAudio`        | on / on                                               | Claude summaries (with `ANTHROPIC_API_KEY`); play calls on the card                        |
-| `atc.recentMinutes` / `keepMinutes`      | 10 / 60                                               | how recent a call must be to show on a card; how long audio is kept                        |
+| Setting                                  | Default                                               | Notes                                                                                                                             |
+| ---------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `receiver.lat/lon/altitudeM`             | Seattle                                               | Where the antenna and screen are. Altitude is ground elevation, used for "look up" angles.                                        |
+| `source.type`                            | `simulator`                                           | `aircraft-json` (your Pi), `adsb-api` (online), `simulator`                                                                       |
+| `source.url`                             | `http://raspberrypi.local/tar1090/data/aircraft.json` | readsb / dump1090-fa / tar1090 `aircraft.json`                                                                                    |
+| `source.apiUrl`                          | adsb.lol `/v2/point/{lat}/{lon}/{radiusNm}`           | any readsb-style API                                                                                                              |
+| `source.supplement`                      | off                                                   | with your receiver: also fill in the planes it doesn't hear from `apiUrl`; each plane is marked _Your antenna_ or _adsb.lol only_ |
+| `source.onlineSeconds`                   | 10                                                    | how often to ask the online feed (at least 5; adsb.lol refuses faster)                                                            |
+| `display.cycleSeconds`                   | 10                                                    | time per aircraft                                                                                                                 |
+| `display.cycleRangeKm`                   | 24.14 (15 mi)                                         | only aircraft this close are cycled through                                                                                       |
+| `display.min/maxAltitudeFt`              | 0 / 50,000                                            | e.g. skip high overflights you can't see                                                                                          |
+| `display.hideGround`                     | true                                                  |                                                                                                                                   |
+| `display.spotlight.*`                    | off, 2 mi, below 8,000 ft                             | stick to very close aircraft                                                                                                      |
+| `display.facingDeg`                      | 0                                                     | compass direction you face while looking at the screen                                                                            |
+| `display.units`                          | `imperial`                                            | `imperial` (mi, mph), `aviation` (nm, kt), `metric`                                                                               |
+| `display.theme`                          | `auto`                                                | `auto` follows sunrise/sunset at the receiver                                                                                     |
+| `display.layout`                         | `card`                                                | `card` (map in between) or `split` (map always alongside)                                                                         |
+| `map.everyCards` / `map.seconds`         | 5 / 15                                                | 0 = never interleave the map                                                                                                      |
+| `map.rangeKm`                            | 64.37 (40 mi)                                         | aircraft shown on the map                                                                                                         |
+| `map.orientation`                        | `north-up`                                            | or `facing-up`                                                                                                                    |
+| `map.trailMinutes`                       | 30                                                    | how much of each plane's path to draw (0 = none, up to 180)                                                                       |
+| `map.tiles` / `map.tileApiKey`           | `stadia` / empty                                      | `stadia`, `maptiler` or `carto` (free key needed), `osm`, `none` (offline), `custom`                                              |
+| `enrichment.photoMode`                   | `airframe`                                            | `airframe`, `type`, `off`                                                                                                         |
+| `enrichment.routes` / `routeProviders`   | on / adsb.im, adsbdb                                  |                                                                                                                                   |
+| `enrichment.flightTracks`                | on                                                    | whole flight since take-off on the mini map, from adsb.lol                                                                        |
+| `flightaware.monthlyBudgetUsd`           | 4                                                     | hard monthly cap for AeroAPI queries (0–10; needs `FLIGHTAWARE_API_KEY`)                                                          |
+| `flightaware.perMinute`                  | 6                                                     | queries a minute (1–8)                                                                                                            |
+| `flightaware.generalAviation` / `tracks` | on / on                                               | look up business jets and turboprops; fill in a tapped plane's flight path                                                        |
+| `atc.enabled`                            | off                                                   | listen to air traffic control (see above)                                                                                         |
+| `atc.source`                             | `folder`                                              | `folder` (files in `atc.folder`, default `data/atc/inbox`) or `stream` (`atc.streamUrl`)                                          |
+| `atc.whisperUrl`                         | `http://whisper:8080`                                 | the whisper.cpp server                                                                                                            |
+| `atc.facility`                           | empty                                                 | local facility name as said on the radio ("Saskatoon")                                                                            |
+| `atc.summaries` / `atc.playAudio`        | on / on                                               | Claude summaries (with `ANTHROPIC_API_KEY`); play calls on the card                                                               |
+| `atc.recentMinutes` / `keepMinutes`      | 10 / 60                                               | how recent a call must be to show on a card; how long audio is kept                                                               |
 
 Environment variables: `PORT` (8080), `DATA_DIR` (`./data`), `ADMIN_PASSWORD` (if set, needed to change settings),
 `FLIGHTAWARE_API_KEY` (AeroAPI, see above), `ANTHROPIC_API_KEY` (Claude summaries of air traffic control calls), and

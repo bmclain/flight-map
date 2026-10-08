@@ -576,7 +576,7 @@ export class MapView {
    * @param {object[]} aircraft
    * @param {{currentHex: string|null, cycleHexes: Set<string>, trails: Map, now: number}} state  (now: server clock)
    */
-  update(aircraft, { currentHex, cycleHexes, trails, now = Date.now() }) {
+  update(aircraft, { currentHex, cycleHexes, trails, now = Date.now(), sources = null }) {
     if (!this.settings) return;
     const vmin = Math.min(window.innerWidth, window.innerHeight);
     const seen = new Set();
@@ -625,6 +625,7 @@ export class MapView {
         }
         el.classList.toggle('current', isCurrent);
         el.classList.toggle('in-cycle', inCycle);
+        el.classList.toggle('online', !!sources && ac.via === 'online');
         el.querySelector('.glyph').style.transform = `rotate(${ac.trackDeg ?? 0}deg)`;
         const lbl = el.querySelector('.label');
         if (lbl) {
@@ -645,7 +646,7 @@ export class MapView {
       }
     }
     this.#drawTrails(aircraft, groups, trails, currentHex, cycleHexes, now);
-    this.#drawSummary(groups);
+    this.#drawSummary(groups, sources ? { name: sources.online, aircraft } : null);
   }
 
   /**
@@ -818,18 +819,26 @@ export class MapView {
    * The summary: how many planes on the map per airline (in its colour), then
    * police, air ambulance, government, military and private, always listed.
    */
-  #drawSummary(groups) {
+  #drawSummary(groups, merged = null) {
     if (!this.legendEl) return;
     const rows = summarize(groups.values());
-    const key = rows.map((r) => `${r.group.key}:${r.count}`).join('|');
+    // With the online fill-in: how many your antenna hears, and how many only the feed has.
+    let sourceRow = '';
+    if (merged) {
+      const mine = merged.aircraft.filter((a) => a.via === 'antenna').length;
+      const theirs = merged.aircraft.filter((a) => a.via === 'online').length;
+      sourceRow = `<span class="lg src"><i class="solid"></i>Your antenna<b>${mine}</b></span><span class="lg src"><i class="hollow"></i>${esc(merged.name)} only<b>${theirs}</b></span>`;
+    }
+    const key = `${rows.map((r) => `${r.group.key}:${r.count}`).join('|')}|${sourceRow}`;
     if (key === this.legendKey) return;
     this.legendKey = key;
-    this.legendEl.innerHTML = rows
-      .map(
-        ({ group, count }) =>
-          `<span class="lg${count ? '' : ' none'}"><i style="background: ${esc(this.#color(group))}"></i>${esc(group.label)}<b>${count}</b></span>`,
-      )
-      .join('');
+    this.legendEl.innerHTML =
+      rows
+        .map(
+          ({ group, count }) =>
+            `<span class="lg${count ? '' : ' none'}"><i style="background: ${esc(this.#color(group))}"></i>${esc(group.label)}<b>${count}</b></span>`,
+        )
+        .join('') + sourceRow;
   }
 
   setTitle(html) {

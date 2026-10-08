@@ -216,6 +216,7 @@ test('API: switching to a receiver URL and testing the connection', async (t) =>
     app.tracker.snapshot().map((a) => a.hex),
     ['a00001'],
   );
+  assert.equal(app.tracker.snapshot()[0].via, 'antenna', 'from your receiver');
   await waitFor(() => app.traffic.status().today === 1, { timeoutMs: 3000 });
 });
 

@@ -18,6 +18,11 @@ export const DEFAULT_CONFIG = {
     url: 'http://raspberrypi.local/tar1090/data/aircraft.json',
     apiUrl: 'https://api.adsb.lol/v2/point/{lat}/{lon}/{radiusNm}',
     pollSeconds: 1,
+    // With 'aircraft-json': also fill in the planes your antenna doesn't hear
+    // from the online feed (apiUrl). Each plane is marked with where it came from.
+    supplement: false,
+    // How often to ask the online feed (free APIs rate-limit; at least 5 s).
+    onlineSeconds: 10,
   },
   display: {
     cycleSeconds: 10,
@@ -182,6 +187,8 @@ const SCHEMA = {
     url: str(500),
     apiUrl: str(500),
     pollSeconds: num(0.5, 60),
+    supplement: bool(),
+    onlineSeconds: num(5, 120),
   },
   display: {
     cycleSeconds: num(3, 600),

@@ -8,6 +8,7 @@ import { TrafficLog } from './traffic.js';
 import { Enricher } from './enrich/index.js';
 import { AtcService } from './atc/index.js';
 import { HttpSource, expandUrl } from './sources/http.js';
+import { MergedSource } from './sources/merged.js';
 import { SimulatorSource } from './sources/simulator.js';
 
 const BROADCAST_MS = 1000;
@@ -86,22 +87,36 @@ export class App {
     if (sourceCfg.type === 'simulator') {
       return new SimulatorSource({ getConfig, pollSeconds: sourceCfg.pollSeconds, onData, log: this.log });
     }
-    const url =
-      sourceCfg.type === 'adsb-api'
-        ? () => {
-            const { receiver, map, display } = getConfig();
-            return expandUrl(sourceCfg.apiUrl, {
-              lat: receiver.lat,
-              lon: receiver.lon,
-              radiusKm: Math.max(map.rangeKm, display.cycleRangeKm),
-            });
-          }
-        : () => sourceCfg.url;
+    const apiUrl = () => {
+      const { receiver, map, display } = getConfig();
+      return expandUrl(sourceCfg.apiUrl, {
+        lat: receiver.lat,
+        lon: receiver.lon,
+        radiusKm: Math.max(map.rangeKm, display.cycleRangeKm),
+      });
+    };
+    // Your receiver, with the planes it doesn't hear filled in from the online feed.
+    if (sourceCfg.type === 'aircraft-json' && sourceCfg.supplement) {
+      return new MergedSource({
+        url: () => sourceCfg.url,
+        onlineUrl: apiUrl,
+        pollSeconds: sourceCfg.pollSeconds,
+        onlineSeconds: sourceCfg.onlineSeconds,
+        onData,
+        log: this.log,
+        fetchImpl: this.fetch,
+      });
+    }
+    // One feed: every plane came from it.
+    const via = sourceCfg.type === 'adsb-api' ? 'online' : 'antenna';
     return new HttpSource({
       type: sourceCfg.type,
-      url,
-      pollSeconds: sourceCfg.pollSeconds,
-      onData,
+      url: sourceCfg.type === 'adsb-api' ? apiUrl : () => sourceCfg.url,
+      pollSeconds:
+        sourceCfg.type === 'adsb-api'
+          ? Math.max(sourceCfg.pollSeconds, sourceCfg.onlineSeconds)
+          : sourceCfg.pollSeconds,
+      onData: (data) => onData({ ...data, aircraft: data.aircraft.map((a) => ({ ...a, via })) }),
       log: this.log,
       fetchImpl: this.fetch,
     });
@@ -189,6 +204,21 @@ export class App {
       sourceOk: !!s.lastOkAt && Date.now() - s.lastOkAt < 15_000,
       sourceError: s.lastError ?? null,
       lastOkAt: s.lastOkAt ?? null,
+      // Antenna plus online fill-in: whether each is coming through.
+      ...(s.type === 'merged'
+        ? { antennaOk: s.antenna.ok, antennaError: s.antenna.lastError, onlineOk: s.online.ok }
+        : {}),
+    };
+  }
+
+  /** How much of the sky your antenna hears: its planes, the online-only ones, its furthest. */
+  #coverage() {
+    const aircraft = this.tracker.snapshot({ radio: false });
+    const antenna = aircraft.filter((a) => a.via === 'antenna');
+    return {
+      antenna: antenna.length,
+      online: aircraft.filter((a) => a.via === 'online').length,
+      farthestAntennaKm: antenna.length ? Math.max(...antenna.map((a) => a.distanceKm)) : null,
     };
   }
 
@@ -198,6 +228,7 @@ export class App {
       serverTime: Date.now(),
       source: this.source?.status() ?? null,
       tracker: { tracked: this.tracker.count, lastUpdate: this.tracker.lastUpdate },
+      coverage: this.#coverage(),
       enrichment: this.enricher.status(),
       traffic: this.traffic.status(),
       atc: this.atc.status(),

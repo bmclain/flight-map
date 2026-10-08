@@ -139,6 +139,18 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
           aircraft: data.aircraft.length,
           withPosition: data.aircraft.filter((a) => a.lat != null).length,
           hasTypes: data.aircraft.some((a) => a.type),
+          // With the online fill-in: what the online feed has too.
+          ...(cfg.type === 'aircraft-json' && cfg.supplement
+            ? {
+                online: data.online
+                  ? {
+                      aircraft: data.online.aircraft.length,
+                      withPosition: data.online.aircraft.filter((a) => a.lat != null).length,
+                    }
+                  : null,
+                onlineError: data.onlineError ?? null,
+              }
+            : {}),
         });
       } catch (err) {
         sendJson(res, 200, { ok: false, url: source.status().url, error: err.message });

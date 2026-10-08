@@ -132,6 +132,8 @@ export class Tracker {
         elevationDeg: round(elevation, 1),
         posAge: round(posAge, 1),
         mlat: ac.mlat,
+        // 'antenna' (your receiver) or 'online' (adsb.lol only); null for the simulator.
+        via: ac.via ?? null,
         firstSeen: s.firstSeen,
         ...extra,
       };

@@ -273,6 +273,20 @@ body[data-layout='split'][data-view='loading'] #map-wrap {
   background: var(--danger);
   color: #fff;
 }
+/* Where the position comes from: your antenna, or only the online feed. */
+.badge.src {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.badge.src-antenna {
+  background: color-mix(in srgb, var(--accent-2) 22%, var(--panel-2));
+}
+.badge.src-online {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 
 /* Special aircraft (police, air ambulance, …): one colour per kind. */
 .sp-police,
@@ -1121,6 +1135,22 @@ body[data-layout='split'] .map-title {
 .ac-marker .halo {
   display: none;
 }
+/* Only the online feed has it (your antenna doesn't hear it): hollow, in its colour. */
+.ac-marker.online .body {
+  fill: color-mix(in srgb, var(--pc, var(--map-plane-dim)) 18%, transparent);
+  stroke: var(--pc, var(--map-plane-dim));
+  stroke-width: 4;
+}
+.map-legend .lg.src i.solid {
+  background: var(--map-plane);
+}
+.map-legend .lg.src i.hollow {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--map-plane);
+}
+.map-legend .lg:not(.src) + .lg.src {
+  margin-left: 0.4em;
+}
 .ac-marker.current .halo {
   display: inline;
   fill: none;
@@ -1284,6 +1314,9 @@ body[data-layout='split'] .map-title {
   height: 0.7em;
   border-radius: 50%;
   background: #3ecf72;
+}
+#footer .status.warn .dot {
+  background: var(--accent);
 }
 #footer .status.bad .dot {
   background: var(--danger);

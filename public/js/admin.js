@@ -372,7 +372,13 @@ $('#test-source').addEventListener('click', async () => {
       out.textContent =
         draft.source.type === 'simulator'
           ? 'The simulator is always available.'
-          : `Connected: ${r.aircraft} aircraft, ${r.withPosition} with a position${r.hasTypes ? ', with type info' : ''}.`;
+          : `Connected: ${r.aircraft} aircraft, ${r.withPosition} with a position${r.hasTypes ? ', with type info' : ''}.${
+              'online' in r
+                ? r.online
+                  ? ` The online feed has ${r.online.withPosition} with a position.`
+                  : ` The online feed failed: ${r.onlineError ?? 'no answer'}.`
+                : ''
+            }`;
     } else {
       out.className = 'note bad';
       out.textContent = `Failed: ${r.error}`;
@@ -537,7 +543,12 @@ async function refreshStatus() {
     const src = s.source ?? {};
     const ok = src.lastOkAt && Date.now() - src.lastOkAt < 15_000;
     const srcName =
-      { 'aircraft-json': 'Receiver', 'adsb-api': 'Online feed', simulator: 'Simulator' }[src.type] ?? src.type;
+      { 'aircraft-json': 'Receiver', 'adsb-api': 'Online feed', simulator: 'Simulator', merged: 'Your antenna' }[
+        src.type
+      ] ?? src.type;
+    // Antenna plus online fill-in: the antenna's own state, and what it covers.
+    const antenna = src.type === 'merged' ? src.antenna : src;
+    const antennaOk = src.type === 'merged' ? antenna.ok : ok;
     const rate = src.messageRate != null ? ` · ${Math.round(src.messageRate)} msg/s` : '';
     const db = s.enrichment.databases;
     const routes = s.enrichment.routes;
@@ -545,10 +556,15 @@ async function refreshStatus() {
     $('#status').innerHTML = [
       tile(
         srcName,
-        ok ? `${src.positionCount} aircraft with position` : src.lastError ? 'Not receiving' : 'Waiting…',
-        ok ? `${src.aircraftCount} heard${rate}` : (src.lastError ?? src.url ?? ''),
-        ok ? 'ok' : 'bad',
+        antennaOk
+          ? `${antenna.positionCount} aircraft with position`
+          : antenna.lastError
+            ? 'Not receiving'
+            : 'Waiting…',
+        antennaOk ? `${antenna.aircraftCount} heard${rate}` : (antenna.lastError ?? antenna.url ?? ''),
+        antennaOk ? 'ok' : 'bad',
       ),
+      src.type === 'merged' ? coverageTile(s.coverage, src.online) : '',
       tile('Displays connected', String(s.displays), `Tracking ${s.tracker.tracked} aircraft`),
       tile(
         'Aircraft database',
@@ -580,6 +596,20 @@ async function refreshStatus() {
   } catch {
     $('#status').innerHTML = tile('Server', 'Unreachable', 'Is Look Up running?', 'bad');
   }
+}
+
+/** Antenna plus online fill-in: how much of the sky the antenna catches. */
+function coverageTile(c, online) {
+  const total = c.antenna + c.online;
+  const share = total ? Math.round((100 * c.antenna) / total) : 0;
+  return tile(
+    'Antenna coverage',
+    `${c.antenna} of ${total} planes (${share}%)`,
+    `${c.farthestAntennaKm != null ? `Furthest heard: ${Math.round(c.farthestAntennaKm)} km` : 'Nothing heard yet'}${
+      online.ok ? '' : ` · online feed not answering${online.lastError ? `: ${online.lastError}` : ''}`
+    }`,
+    share >= 70 ? 'ok' : 'warn',
+  );
 }
 
 const usd = (v) => `$${(v ?? 0).toFixed(v >= 1 ? 2 : 3)}`;

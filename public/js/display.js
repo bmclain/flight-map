@@ -225,7 +225,35 @@ function badgesHtml(ac, ctx = null) {
   if (isEmergency(ac)) badges.push('<span class="badge danger">Emergency</span>');
   const kind = specialKind(ac);
   if (kind) badges.push(`<span class="badge sp sp-${kind}">${esc(SPECIAL_LABELS[kind])}</span>`);
+  const src = sourceBadge(ac);
+  if (src) badges.push(src);
   return badges.join('');
+}
+
+/** "adsb.lol" from the online feed's URL ("https://api.adsb.lol/v2/…"). */
+function onlineName() {
+  try {
+    return new URL(live.config.source.apiUrl.replace(/[{}]/g, '')).hostname.replace(/^(api|www)\./, '');
+  } catch {
+    return 'online feed';
+  }
+}
+
+/**
+ * Where the plane's position comes from, when there's more than one place it
+ * could: your antenna, or only the online feed.
+ */
+function sourceBadge(ac) {
+  const type = live.status?.sourceType;
+  if (type === 'merged') {
+    return ac.via === 'antenna'
+      ? '<span class="badge src src-antenna">Your antenna</span>'
+      : ac.via === 'online'
+        ? `<span class="badge src src-online">${esc(onlineName())} only</span>`
+        : '';
+  }
+  if (type === 'adsb-api') return `<span class="badge src src-online">${esc(onlineName())}</span>`;
+  return '';
 }
 
 const isEmergency = (ac) => !!ac.emergency || ac.squawk in EMERGENCY_SQUAWKS;
@@ -816,11 +844,20 @@ function updateStatus() {
   const ok = live.live && status?.sourceOk !== false;
   const el = $('f-status');
   el.classList.toggle('bad', !ok);
+  el.classList.remove('warn');
   let text = eff?.receiver?.name ?? '';
   if (!live.live) text = 'Reconnecting to server…';
   else if (status && !status.sourceOk)
     text = `No data from receiver${status.sourceError ? ` · ${status.sourceError}` : ''}`;
   else if (status?.sourceType === 'simulator') text = `${text} · simulated traffic`;
+  else if (status?.sourceType === 'merged') {
+    // "Backyard · your antenna 5 · adsb.lol +24"
+    const mine = live.aircraft.filter((a) => a.via === 'antenna').length;
+    const theirs = live.aircraft.filter((a) => a.via === 'online').length;
+    if (!status.antennaOk) text = `${text} · antenna not responding, ${onlineName()} only`;
+    else text = `${text} · your antenna ${mine}${status.onlineOk ? ` · ${onlineName()} +${theirs}` : ''}`;
+    el.classList.toggle('warn', !status.antennaOk);
+  }
   $('f-status-text').textContent = text;
 }
 
@@ -864,6 +901,8 @@ function onAircraft() {
     cycleHexes: new Set(ctx.pool.map((a) => a.hex)),
     trails: live.trails,
     now: live.now(),
+    // Antenna plus online fill-in: hollow planes are the online feed's only.
+    sources: live.status?.sourceType === 'merged' ? { online: onlineName() } : null,
   });
 }
 

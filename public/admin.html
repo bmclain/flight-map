@@ -83,6 +83,22 @@
             <code>http://PI:8080/data/aircraft.json</code></small
           >
         </label>
+        <div data-show="source.type=aircraft-json">
+          <label class="check"
+            ><input type="checkbox" data-path="source.supplement" /> Also fill in the planes my antenna doesn't hear
+            from the online feed (adsb.lol)</label
+          >
+          <small class="help"
+            >Planes are marked on their cards: <em>Your antenna</em> or <em>adsb.lol only</em>, and the online-only ones
+            are hollow on the map. Handy for seeing how much of the sky your antenna catches.</small
+          >
+        </div>
+        <label data-show="source.type=adsb-api|aircraft-json"
+          >Ask the online feed every (seconds)
+          <input type="number" min="5" max="120" step="1" data-path="source.onlineSeconds" /><small
+            >Free APIs such as adsb.lol refuse requests that come too often; 10 s is safe.</small
+          ></label
+        >
         <label data-show="source.type=adsb-api"
           >API URL
           <input type="url" data-path="source.apiUrl" />

@@ -117,8 +117,11 @@ export const DEFAULT_CONFIG = {
     // Spoken name of the local facilities ("Saskatoon" Tower / Ground).
     facility: '',
     // Plain-English summaries by Claude when ANTHROPIC_API_KEY is set
-    // (otherwise a simpler rule-based line).
+    // (otherwise a simpler rule-based line), with a hard monthly budget in US$
+    // (spread over the days left) and a cap on requests an hour.
     summaries: true,
+    summaryBudgetUsd: 2,
+    summariesPerHour: 30,
     // Play the plane's recent calls when its card comes up.
     playAudio: true,
     // Calls this recent show and play on the card; audio is kept for keepMinutes.
@@ -248,6 +251,8 @@ const SCHEMA = {
     whisperUrl: str(500),
     facility: str(60),
     summaries: bool(),
+    summaryBudgetUsd: num(0, 20),
+    summariesPerHour: num(1, 120, { int: true }),
     playAudio: bool(),
     recentMinutes: num(1, 60),
     keepMinutes: num(5, 1440),

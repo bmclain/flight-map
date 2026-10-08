@@ -1,7 +1,9 @@
 // Splits continuous radio audio into separate transmissions. Airband receivers
-// (and LiveATC's feeds) are squelched, so there's near-silence between calls;
-// we follow the background level and cut where the signal rises above it and
-// where it has been quiet for a moment.
+// (rtl_airband, LiveATC's feeds) are squelched: when nobody's transmitting the
+// audio is digital silence, while a pause in someone's speech still carries
+// radio hiss. So a fifth of a second of true silence ends a call, even when
+// the answer comes straight after. For audio that isn't squelched we also
+// follow the background level and cut after a longer quiet spell.
 
 export const SAMPLE_RATE = 16_000;
 const FRAME = 320; // 20 ms
@@ -10,16 +12,31 @@ const FRAME = 320; // 20 ms
  * @param {object} opts
  * @param {(seg: {pcm: Int16Array, startSample: number}) => void} opts.onSegment
  * @param {number} [opts.startDb]  how far above the background a call must rise
- * @param {number} [opts.hangMs]   quiet time that ends a call
+ * @param {number} [opts.hangMs]   quiet time (above the background, unsquelched audio) that ends a call
+ * @param {number} [opts.squelchDb]     below this is the squelch closed: nobody transmitting
+ * @param {number} [opts.squelchGapMs]  that long with the squelch closed ends a call
  * @param {number} [opts.minMs]    calls with less sound than this are dropped (clicks, blips)
  * @param {number} [opts.maxMs]    longer calls are cut into pieces
  */
 export class Segmenter {
-  constructor({ onSegment, startDb = 10, endDb = 6, hangMs = 900, minMs = 400, maxMs = 30_000, preRollMs = 200 }) {
+  constructor({
+    onSegment,
+    startDb = 10,
+    endDb = 6,
+    hangMs = 900,
+    squelchDb = -70,
+    squelchGapMs = 200,
+    minMs = 400,
+    // Whisper is run with a 15 s window (--audio-ctx 768): longer calls are cut.
+    maxMs = 15_000,
+    preRollMs = 200,
+  }) {
     this.onSegment = onSegment;
     this.startDb = startDb;
     this.endDb = endDb;
     this.hangFrames = Math.round(hangMs / 20);
+    this.squelchDb = squelchDb;
+    this.squelchFrames = Math.round(squelchGapMs / 20);
     this.minLoudFrames = Math.round(minMs / 20);
     this.maxSamples = (maxMs / 1000) * SAMPLE_RATE;
     this.preRollFrames = Math.round(preRollMs / 20);
@@ -60,7 +77,7 @@ export class Segmenter {
     if (!this.active) {
       if (db > Math.max(this.floorDb + this.startDb, -50)) {
         const pre = this.preRoll;
-        this.active = { frames: [...pre, copy], startSample: pos - pre.length * FRAME, quiet: 0, loud: 1 };
+        this.active = { frames: [...pre, copy], startSample: pos - pre.length * FRAME, quiet: 0, silent: 0, loud: 1 };
         this.preRoll = [];
         return;
       }
@@ -74,8 +91,10 @@ export class Segmenter {
     a.frames.push(copy);
     const quiet = db < this.floorDb + this.endDb;
     a.quiet = quiet ? a.quiet + 1 : 0;
+    a.silent = db < this.squelchDb ? a.silent + 1 : 0;
     if (!quiet) a.loud++;
-    if (a.quiet >= this.hangFrames) this.#close(a.quiet);
+    if (a.silent >= this.squelchFrames) this.#close(a.silent);
+    else if (a.quiet >= this.hangFrames) this.#close(a.quiet);
     else if (a.frames.length * FRAME >= this.maxSamples) this.#close();
   }
 

@@ -126,7 +126,9 @@ export class FolderSource {
     this.state.files++;
     this.state.lastAt = Date.now();
     const label = path.basename(file).replace(AUDIO_EXT, '');
-    for (const s of found) this.onTransmission({ pcm: s.pcm, at: startedAt + msOf(s.startSample), label });
+    // One at a time: a long recording can hold hundreds of calls.
+    for (const s of found)
+      await this.onTransmission({ pcm: s.pcm, at: startedAt + msOf(s.startSample), label, fromFile: true });
   }
 
   #error(err) {

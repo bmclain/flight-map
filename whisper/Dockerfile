@@ -15,7 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl c
  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/bin/whisper-server /src/build/bin/whisper-cli /usr/local/bin/
 COPY entrypoint.sh /entrypoint.sh
-ENV WHISPER_MODEL=small.en WHISPER_THREADS=8
+# large-v3-turbo heard twice as many callsigns as small.en in a real CYXE
+# recording; with a 15 s window it takes about 8 s a call on 16 older cores.
+ENV WHISPER_MODEL=large-v3-turbo-q5_0 WHISPER_THREADS=16 WHISPER_ARGS="--audio-ctx 768"
 VOLUME ["/models"]
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]

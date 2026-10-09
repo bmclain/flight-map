@@ -19,6 +19,8 @@ export function mergeAircraft(local, online, now = Date.now()) {
     for (const rec of online.data.aircraft) {
       const ac = {
         ...rec,
+        // Their receivers' signal strength, not ours.
+        rssi: null,
         seen: rec.seen + age,
         seenPos: rec.seenPos == null ? null : rec.seenPos + age,
         via: 'online',

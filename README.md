@@ -235,6 +235,16 @@ and the operator's name). Add your own under **Settings → Special aircraft** b
 code (`STAR*` matches callsigns starting with STAR), and tick **Alert** to show a notice in the top corner of the display
 whenever that aircraft is in range. Emergency squawks (7500, 7600, 7700) always show a notice.
 
+## RF status
+
+`/rf` (linked from Settings) checks how well your own receiver is doing, from readsb's `stats.json` and 24-hour range
+outline on the Pi (it needs _My receiver_ as the aircraft source, with an `…/data/aircraft.json` URL). It gives a
+verdict and plain-English checks — overload, signal above the noise, gain maxed out, dropped samples, tuning error, the
+furthest plane heard — and, with the online fill-in turned on, what share of the planes adsb.lol sees your antenna hears
+at each distance, which is the clearest test of an antenna or its cable. Charts: range by direction with today's planes
+heard and missed, signal strength against distance, and the last 48 hours (kept in `data/cache/rf-history.json`). It
+links to the Pi's own graphs1090 for longer history.
+
 ## Your local airport
 
 Set **Settings → Daily traffic → Local airport** (code, position and elevation) and the traffic page shows where its
@@ -368,6 +378,7 @@ first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (
 | `GET /api/aircraft`            | enriched aircraft in range, nearest first (`?trails` for position history)     |
 | `GET /api/aircraft/:hex/track` | the flight since take-off (adsb.lol) for an aircraft being tracked             |
 | `GET /api/aircraft/:hex/radio` | its air traffic control calls lately, with transcripts and audio               |
+| `GET /api/rf`                  | receiver health: checks, verdict, coverage, range outline, 48-hour history     |
 | `GET /api/atc/recent`          | the last 50 calls heard, matched or not                                        |
 | `GET /api/config` / `PUT`      | read / update settings (PUT accepts partial objects; 400 lists invalid fields) |
 | `GET /api/status`              | receiver feed, databases, lookup caches, connected displays                    |

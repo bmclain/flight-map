@@ -9,6 +9,7 @@ import { Enricher } from './enrich/index.js';
 import { AtcService } from './atc/index.js';
 import { HttpSource, expandUrl } from './sources/http.js';
 import { MergedSource } from './sources/merged.js';
+import { RfMonitor } from './rf.js';
 import { SimulatorSource } from './sources/simulator.js';
 
 const BROADCAST_MS = 1000;
@@ -33,6 +34,7 @@ export class App {
       env,
     });
     this.tracker.radio = (hex) => this.atc.brief(hex);
+    this.rf = new RfMonitor({ dataDir, getConfig: this.getConfig, tracker: this.tracker, log, fetchImpl });
     this.tracksFile = path.join(dataDir, 'cache', 'tracks.json');
     this.clients = new Set();
     this.source = null;
@@ -53,6 +55,7 @@ export class App {
     }
     this.#startSource();
     await this.atc.start();
+    await this.rf.start();
     this.configStore.onChange((next, prev) => {
       if (JSON.stringify(next.source) !== JSON.stringify(prev.source)) {
         // Don't carry planes over from the old source (simulated ones in particular).
@@ -74,6 +77,7 @@ export class App {
     clearInterval(this.keepAliveTimer);
     this.source?.stop();
     this.atc.stop();
+    await this.rf.stop();
     await this.traffic.stop();
     await this.tracker.saveTracks(this.tracksFile).catch((err) => this.log.warn(`tracks: ${err.message}`));
     for (const res of this.clients) res.end();

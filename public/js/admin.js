@@ -237,6 +237,39 @@ async function apiFetch(url, opts = {}, retry = true) {
   return res;
 }
 
+// ---- tabs ------------------------------------------------------------------------------
+
+const TABS = $$('.tabs [data-tab]').map((b) => b.dataset.tab);
+
+/** Show one tab's sections; the tab is kept in the address (#display) for reloads and links. */
+function showTab(name) {
+  if (!TABS.includes(name)) name = TABS[0];
+  for (const b of $$('.tabs [data-tab]')) {
+    const on = b.dataset.tab === name;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  }
+  for (const s of $$('main [data-tab]')) s.hidden = s.dataset.tab !== name;
+  if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+  // Maps in a tab that was hidden have to measure themselves again.
+  window.dispatchEvent(new Event('resize'));
+}
+
+$('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (b) showTab(b.dataset.tab);
+});
+$('.tabs').addEventListener('keydown', (e) => {
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+  if (!step) return;
+  const i = TABS.indexOf(document.activeElement?.dataset.tab);
+  const next = TABS[(i + step + TABS.length) % TABS.length];
+  showTab(next);
+  $(`.tabs [data-tab="${next}"]`).focus();
+});
+window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+showTab(location.hash.slice(1));
+
 $('#save').addEventListener('click', async () => {
   $$('.invalid').forEach((el) => el.classList.remove('invalid'));
   try {
@@ -245,6 +278,9 @@ $('#save').addEventListener('click', async () => {
     if (!res.ok) {
       for (const e of body.errors ?? []) $$(`[data-path="${e.field}"]`).forEach((el) => el.classList.add('invalid'));
       const first = body.errors?.[0];
+      // The field to fix may be on another tab.
+      const bad = $('.invalid')?.closest('[data-tab]');
+      if (bad) showTab(bad.dataset.tab);
       updateSavebar(first ? `${first.field}: ${first.error}` : body.error, 'bad');
       return;
     }

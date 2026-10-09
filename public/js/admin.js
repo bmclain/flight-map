@@ -5,6 +5,7 @@ import { compassPoint, compassWord, normalizeDeg } from '/shared/geo.js';
 import { distanceUnit, formatDistance, joinUnit, kmToUnit, unitToKm } from '/shared/units.js';
 import { TILE_PROVIDERS, tileSpec } from '/shared/tiles.js';
 import { SPECIAL_KINDS, SPECIAL_LABELS } from '/shared/special-kinds.js';
+import { startRf, stopRf } from './rf.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -240,9 +241,12 @@ async function apiFetch(url, opts = {}, retry = true) {
 // ---- tabs ------------------------------------------------------------------------------
 
 const TABS = $$('.tabs [data-tab]').map((b) => b.dataset.tab);
+// Old addresses still land on the right tab.
+const RENAMED = { radio: 'atc', rf: 'receiver' };
 
 /** Show one tab's sections; the tab is kept in the address (#display) for reloads and links. */
 function showTab(name) {
+  name = RENAMED[name] ?? name;
   if (!TABS.includes(name)) name = TABS[0];
   for (const b of $$('.tabs [data-tab]')) {
     const on = b.dataset.tab === name;
@@ -253,6 +257,9 @@ function showTab(name) {
   if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
   // Maps in a tab that was hidden have to measure themselves again.
   window.dispatchEvent(new Event('resize'));
+  // Receiver health only asks the Pi while it's open.
+  if (name === 'receiver') startRf();
+  else stopRf();
 }
 
 $('.tabs').addEventListener('click', (e) => {
@@ -601,6 +608,7 @@ async function refreshStatus() {
         antennaOk ? 'ok' : 'bad',
       ),
       src.type === 'merged' ? coverageTile(s.coverage, src.online) : '',
+      s.rf?.assessment ? receiverHealthTile(s.rf.assessment) : '',
       tile('Displays connected', String(s.displays), `Tracking ${s.tracker.tracked} aircraft`),
       tile(
         'Aircraft database',
@@ -677,6 +685,22 @@ function renderFlightAwareState(fa) {
   el.textContent = !fa?.configured
     ? 'No API key: set FLIGHTAWARE_API_KEY in the server environment to use FlightAware.'
     : `This month: ${usd(fa.spentThisMonthUsd)} of ${usd(fa.budgetUsd)} spent, ${usd(fa.spentTodayUsd)} today.`;
+}
+
+/** The Receiver health tab's verdict, linking to it. */
+function receiverHealthTile(a) {
+  const word =
+    { good: 'Working well', fair: 'Needs attention', poor: 'Performing poorly' }[a.verdict] ?? 'Not sure yet';
+  const parts = [];
+  if (a.problems) parts.push(`${a.problems} problem${a.problems === 1 ? '' : 's'}`);
+  if (a.warnings) parts.push(`${a.warnings} to check`);
+  const html = tile(
+    'Receiver health',
+    word,
+    `${parts.length ? parts.join(', ') : 'All checks pass'} · see Receiver health`,
+    { good: 'ok', fair: 'warn', poor: 'bad' }[a.verdict],
+  );
+  return `<a class="stat-link" href="#receiver">${html}</a>`;
 }
 
 function atcTile(atc) {

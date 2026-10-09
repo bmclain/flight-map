@@ -236,6 +236,7 @@ export class App {
       enrichment: this.enricher.status(),
       traffic: this.traffic.status(),
       atc: this.atc.status(),
+      rf: this.rf.status(),
       displays: this.clients.size,
     };
   }

@@ -23,7 +23,6 @@ const PAGES = {
   '/display': path.join(ROOT, 'public', 'display.html'),
   '/admin': path.join(ROOT, 'public', 'admin.html'),
   '/traffic': path.join(ROOT, 'public', 'traffic.html'),
-  '/rf': path.join(ROOT, 'public', 'rf.html'),
   '/manifest.webmanifest': path.join(ROOT, 'public', 'manifest.webmanifest'),
 };
 
@@ -202,6 +201,11 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
 
       if (pathname === '/') {
         res.writeHead(302, { location: '/display' });
+        return res.end();
+      }
+      // RF status used to be a page of its own; it's a Settings tab now.
+      if (pathname === '/rf') {
+        res.writeHead(302, { location: '/admin#receiver' });
         return res.end();
       }
       if (PAGES[pathname]) return sendFile(res, PAGES[pathname]);

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/css/fonts.css" />
     <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/rf.css" />
   </head>
   <body>
     <header class="top">
@@ -19,7 +20,6 @@
         </div>
       </div>
       <nav class="top-links">
-        <a class="btn ghost" href="/rf">RF status</a>
         <a class="btn ghost" href="/traffic">Daily traffic</a>
         <a class="btn ghost" href="/display" target="_blank" rel="noopener">Open display ↗</a>
       </nav>
@@ -29,7 +29,8 @@
       <button type="button" role="tab" data-tab="overview">Overview</button>
       <button type="button" role="tab" data-tab="display">Display</button>
       <button type="button" role="tab" data-tab="data">Aircraft data</button>
-      <button type="button" role="tab" data-tab="radio">Radio</button>
+      <button type="button" role="tab" data-tab="receiver">Receiver health</button>
+      <button type="button" role="tab" data-tab="atc">ATC audio</button>
       <button type="button" role="tab" data-tab="traffic">Traffic &amp; alerts</button>
     </nav>
 
@@ -466,9 +467,9 @@
         </div>
       </section>
 
-      <!-- Air traffic control radio ------------------------------------------------------->
-      <section data-tab="radio" class="card span-2" id="atc-settings">
-        <h2>Air traffic control radio</h2>
+      <!-- Air traffic control audio ------------------------------------------------------->
+      <section data-tab="atc" class="card span-2" id="atc-settings">
+        <h2>Air traffic control audio</h2>
         <p class="help">
           Listens to tower and ground radio, works out which plane each call is to or from, and shows what's going on in
           plain words on that plane's card, playing the calls as it comes up. Needs the <code>whisper</code>
@@ -553,6 +554,71 @@
         </ol>
       </section>
 
+      <!-- Receiver health (RF): how well the ADS-B antenna and stick are doing ------------->
+      <div id="rf" class="viz-root rf-tab" data-tab="receiver" aria-busy="false">
+        <section class="card span-2 verdict" id="verdict">
+          <div class="verdict-head">
+            <span class="status-icon" id="verdict-icon" aria-hidden="true"></span>
+            <div>
+              <h2 id="verdict-title">Checking the receiver…</h2>
+              <p class="muted" id="verdict-sub"></p>
+            </div>
+          </div>
+          <ul class="checks" id="checks"></ul>
+        </section>
+
+        <section class="card span-2">
+          <h2>Right now <small class="muted">(last 15 minutes)</small></h2>
+          <div class="tiles" id="tiles"></div>
+        </section>
+
+        <div class="col">
+          <section class="card">
+            <h2>Planes heard, by distance</h2>
+            <p class="help" id="coverage-help">
+              Of the planes the online feed (adsb.lol) saw in the last hour, the share your antenna heard. A good
+              antenna hears nearly all of them close in, and most out to 200 km.
+            </p>
+            <div class="chart" id="coverage"></div>
+          </section>
+          <section class="card">
+            <h2>Signal strength by distance</h2>
+            <p class="help">
+              Each dot is a plane your antenna heard in the last hour. Signals fade with distance; when they reach the
+              noise floor, planes are lost. Weak signals close in point to the antenna or its cable.
+            </p>
+            <div class="chart" id="signal"></div>
+          </section>
+        </div>
+        <div class="col">
+          <section class="card">
+            <h2>Range by direction</h2>
+            <p class="help">
+              The outline is the furthest your antenna has heard planes in each direction over the last 24 hours. Dots
+              are the planes up now.
+            </p>
+            <div class="legend" id="polar-legend">
+              <span><i class="key heard"></i>Heard by your antenna</span>
+              <span><i class="key missed"></i>Only the online feed has it</span>
+            </div>
+            <div class="chart polar" id="polar"></div>
+          </section>
+          <section class="card">
+            <h2>Settings on the Pi</h2>
+            <dl class="facts" id="facts"></dl>
+            <p class="help">
+              Gain is set by readsb's autogain. The Pi's own graphs (graphs1090) keep months of history.
+            </p>
+            <a class="btn ghost" id="graphs-link" href="#" target="_blank" rel="noopener" hidden>Pi graphs ↗</a>
+          </section>
+        </div>
+
+        <section class="card span-2">
+          <h2>Last 48 hours</h2>
+          <div class="multiples" id="history"></div>
+        </section>
+      </div>
+
       <!-- Special aircraft ---------------------------------------------------------------->
       <section data-tab="traffic" class="card span-2" id="special-settings">
         <h2>Special aircraft</h2>
@@ -572,6 +638,8 @@
         <div class="preview"><iframe id="preview" title="Display preview" src="about:blank"></iframe></div>
       </section>
     </main>
+
+    <div class="tooltip" id="tooltip" role="status" hidden></div>
 
     <div class="savebar" id="savebar">
       <span id="save-msg">Unsaved changes</span>

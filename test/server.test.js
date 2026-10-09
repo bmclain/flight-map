@@ -220,6 +220,13 @@ test('API: switching to a receiver URL and testing the connection', async (t) =>
   await waitFor(() => app.traffic.status().today === 1, { timeoutMs: 3000 });
 });
 
+test('the old RF status page now opens its Settings tab', async (t) => {
+  const { base } = await startServer(t);
+  const res = await fetch(`${base}/rf`, { redirect: 'manual' });
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), '/admin#receiver');
+});
+
 test('API: admin password protects changes', async (t) => {
   const { base } = await startServer(t, { adminPassword: 's3cret' });
   const body = JSON.stringify({ display: { facingDeg: 90 } });

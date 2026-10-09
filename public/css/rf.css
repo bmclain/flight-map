@@ -1,4 +1,5 @@
-/* RF status page: on top of admin.css (header, cards, grid). Chart colours are
+/* Receiver health tab (RF): on top of admin.css. Everything is scoped to
+   .viz-root (the tab) so it never restyles the rest of Settings. Chart colours are
    the validated default palette (slot 1 blue, slot 2 orange) and the fixed
    status palette, stepped separately for light and dark. */
 
@@ -25,27 +26,27 @@
   }
 }
 
-.help {
+.viz-root .help {
   margin: -4px 0 12px;
   color: var(--muted);
   font-size: 13px;
 }
 
 /* ---- verdict ---- */
-.verdict-head {
+.viz-root .verdict-head {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.verdict-head h2 {
+.viz-root .verdict-head h2 {
   font-size: 22px;
   margin: 0 0 2px;
 }
-.verdict-head p {
+.viz-root .verdict-head p {
   margin: 0;
   font-size: 13px;
 }
-.status-icon {
+.viz-root .status-icon {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -57,37 +58,37 @@
   font-size: 20px;
   background: var(--muted-ink);
 }
-.status-icon.good,
-.check .mark.ok {
+.viz-root .status-icon.good,
+.viz-root .check .mark.ok {
   background: var(--status-good);
 }
-.status-icon.fair,
-.check .mark.warn {
+.viz-root .status-icon.fair,
+.viz-root .check .mark.warn {
   background: var(--status-warning);
   color: #1b1204;
 }
-.status-icon.poor,
-.check .mark.bad {
+.viz-root .status-icon.poor,
+.viz-root .check .mark.bad {
   background: var(--status-critical);
 }
-.check .mark.info {
+.viz-root .check .mark.info {
   background: var(--muted-ink);
 }
 
-.checks {
+.viz-root .checks {
   list-style: none;
   margin: 16px 0 0;
   padding: 0;
   display: grid;
   gap: 10px;
 }
-.check {
+.viz-root .check {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
 }
-.check .mark {
+.viz-root .check .mark {
   display: grid;
   place-items: center;
   width: 22px;
@@ -98,11 +99,11 @@
   font-size: 12px;
   font-weight: 800;
 }
-.check b {
+.viz-root .check b {
   display: block;
   font-weight: 600;
 }
-.check .label {
+.viz-root .check .label {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -110,160 +111,160 @@
   color: var(--text-secondary);
   margin-right: 6px;
 }
-.check p {
+.viz-root .check p {
   margin: 2px 0 0;
   color: var(--text-secondary);
   font-size: 13.5px;
 }
-.check p.advice {
+.viz-root .check p.advice {
   color: var(--text-primary);
 }
 
 /* ---- stat tiles ---- */
-.tiles {
+.viz-root .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
 }
-.tile {
+.viz-root .tile {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
 }
-.tile .k {
+.viz-root .tile .k {
   font-size: 12.5px;
   color: var(--text-secondary);
 }
-.tile .v {
+.viz-root .tile .v {
   margin-top: 2px;
   font-size: 24px;
   font-weight: 650;
 }
-.tile .v small {
+.viz-root .tile .v small {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
   margin-left: 3px;
 }
-.tile .s {
+.viz-root .tile .s {
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-secondary);
 }
 
 /* ---- charts ---- */
-.chart {
+.viz-root .chart {
   position: relative;
   width: 100%;
 }
-.chart svg {
+.viz-root .chart svg {
   display: block;
   width: 100%;
   height: auto;
   overflow: visible;
 }
-.chart text {
+.viz-root .chart text {
   fill: var(--muted-ink);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.chart text.ink {
+.viz-root .chart text.ink {
   fill: var(--text-primary);
 }
-.chart text.ink2 {
+.viz-root .chart text.ink2 {
   fill: var(--text-secondary);
 }
-.chart .gridline {
+.viz-root .chart .gridline {
   stroke: var(--grid);
   stroke-width: 1;
 }
-.chart .axis {
+.viz-root .chart .axis {
   stroke: var(--axis);
   stroke-width: 1;
 }
-.chart .bar {
+.viz-root .chart .bar {
   fill: var(--series-1);
 }
-.chart .track {
+.viz-root .chart .track {
   fill: var(--grid);
 }
-.chart .line {
+.viz-root .chart .line {
   fill: none;
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.chart .s1 {
+.viz-root .chart .s1 {
   stroke: var(--series-1);
 }
-.chart .s2 {
+.viz-root .chart .s2 {
   stroke: var(--series-2);
 }
-.chart .wash {
+.viz-root .chart .wash {
   fill: var(--series-1);
   opacity: 0.1;
 }
-.chart .dot {
+.viz-root .chart .dot {
   fill: var(--series-1);
   stroke: var(--surface-1);
   stroke-width: 2;
 }
-.chart .dot.missed {
+.viz-root .chart .dot.missed {
   fill: var(--surface-1);
   stroke: var(--series-2);
   stroke-width: 2;
 }
-.chart .ref {
+.viz-root .chart .ref {
   stroke: var(--text-secondary);
   stroke-width: 1;
 }
-.chart .crosshair {
+.viz-root .chart .crosshair {
   stroke: var(--axis);
   stroke-width: 1;
 }
-.chart .hit {
+.viz-root .chart .hit {
   fill: transparent;
   cursor: default;
 }
-.chart .hit:focus {
+.viz-root .chart .hit:focus {
   outline: none;
 }
-.chart .hover {
+.viz-root .chart .hover {
   stroke: var(--text-primary);
   stroke-width: 2;
 }
-.empty {
+.viz-root .empty {
   padding: 24px 0;
   color: var(--text-secondary);
   font-size: 13px;
   text-align: center;
 }
 
-.polar {
+.viz-root .polar {
   max-width: 420px;
   margin: 0 auto;
 }
 /* The polar plot's viewBox is 256 wide: sizes here are in its units. */
-.polar text.ring {
+.viz-root .polar text.ring {
   font-size: 7px;
 }
-.polar text.compass {
+.viz-root .polar text.compass {
   font-size: 10px;
   font-weight: 600;
 }
-.polar .you {
+.viz-root .polar .you {
   fill: var(--text-primary);
 }
 
 /* Two columns of cards, each stacked, so a tall chart doesn't leave a hole beside it. */
-.col {
+.viz-root .col {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
 }
 
-.legend {
+.viz-root .legend {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 16px;
@@ -271,66 +272,66 @@
   font-size: 12.5px;
   color: var(--text-secondary);
 }
-.legend span {
+.viz-root .legend span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.key {
+.viz-root .key {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
 }
-.key.heard {
+.viz-root .key.heard {
   background: var(--series-1);
 }
-.key.missed {
+.viz-root .key.missed {
   box-shadow: inset 0 0 0 2px var(--series-2);
 }
-.key.line {
+.viz-root .key.line {
   width: 14px;
   height: 2px;
   border-radius: 1px;
 }
-.key.line.s1 {
+.viz-root .key.line.s1 {
   background: var(--series-1);
 }
-.key.line.s2 {
+.viz-root .key.line.s2 {
   background: var(--series-2);
 }
 
-.multiples {
+.viz-root .multiples {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px 28px;
 }
 @media (max-width: 860px) {
-  .multiples {
+  .viz-root .multiples {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.multiples h3 {
+.viz-root .multiples h3 {
   margin: 0 0 6px;
   font-size: 14px;
 }
 
-.facts {
+.viz-root .facts {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 6px 16px;
   margin: 0 0 12px;
   font-size: 14px;
 }
-.facts dt {
+.viz-root .facts dt {
   color: var(--text-secondary);
 }
-.facts dd {
+.viz-root .facts dd {
   margin: 0;
   font-weight: 600;
 }
 
-.tooltip {
+#tooltip.tooltip {
   position: fixed;
   z-index: 50;
   pointer-events: none;
@@ -344,22 +345,22 @@
   line-height: 1.4;
   white-space: nowrap;
 }
-.tooltip .tv {
+#tooltip.tooltip .tv {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.tooltip .row {
+#tooltip.tooltip .row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.tooltip .tk {
+#tooltip.tooltip .tk {
   display: inline-block;
   width: 12px;
   height: 2px;
   border-radius: 1px;
 }
-.tooltip .muted {
+#tooltip.tooltip .muted {
   color: var(--muted);
 }
 

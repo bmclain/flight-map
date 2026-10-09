@@ -1,5 +1,6 @@
-// RF status page: how well the ADS-B receiver on the Pi is doing. Data from
-// /api/rf (server/rf.js), refreshed every 30 s; charts are plain SVG.
+// Settings → Receiver health: how well the ADS-B receiver on the Pi is doing.
+// Data from /api/rf (server/rf.js), refreshed every 30 s while the tab is open;
+// charts are plain SVG, drawn to the width they're shown at.
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) =>
@@ -468,7 +469,7 @@ window.addEventListener('resize', () => {
   if (window.innerWidth === lastWidth) return;
   lastWidth = window.innerWidth;
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => last?.available && renderCharts(last), 150);
+  resizeTimer = setTimeout(() => timer && last?.available && renderCharts(last), 150);
 });
 
 async function load() {
@@ -493,5 +494,18 @@ async function load() {
   }
 }
 
-load();
-setInterval(load, 30_000);
+let timer = null;
+
+/** The tab was opened: load now (charts need it visible to size themselves), then every 30 s. */
+export function startRf() {
+  if (timer) return;
+  load();
+  timer = setInterval(load, 30_000);
+}
+
+/** The tab was closed: stop asking. */
+export function stopRf() {
+  clearInterval(timer);
+  timer = null;
+  hideTip();
+}

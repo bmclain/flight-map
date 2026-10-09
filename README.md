@@ -235,15 +235,15 @@ and the operator's name). Add your own under **Settings → Special aircraft** b
 code (`STAR*` matches callsigns starting with STAR), and tick **Alert** to show a notice in the top corner of the display
 whenever that aircraft is in range. Emergency squawks (7500, 7600, 7700) always show a notice.
 
-## RF status
+## Receiver health
 
-`/rf` (linked from Settings) checks how well your own receiver is doing, from readsb's `stats.json` and 24-hour range
-outline on the Pi (it needs _My receiver_ as the aircraft source, with an `…/data/aircraft.json` URL). It gives a
-verdict and plain-English checks — overload, signal above the noise, gain maxed out, dropped samples, tuning error, the
-furthest plane heard — and, with the online fill-in turned on, what share of the planes adsb.lol sees your antenna hears
-at each distance, which is the clearest test of an antenna or its cable. Charts: range by direction with today's planes
-heard and missed, signal strength against distance, and the last 48 hours (kept in `data/cache/rf-history.json`). It
-links to the Pi's own graphs1090 for longer history.
+**Settings → Receiver health** checks how well your own ADS-B receiver is doing, from readsb's `stats.json` and 24-hour
+range outline on the Pi (it needs _My receiver_ as the aircraft source, with an `…/data/aircraft.json` URL). It gives a
+verdict (also shown on the Overview tab) and plain-English checks — overload, signal above the noise, gain maxed out,
+dropped samples, tuning error, the furthest plane heard — and, with the online fill-in turned on, what share of the
+planes adsb.lol sees your antenna hears at each distance, which is the clearest test of an antenna or its cable.
+Charts: range by direction with today's planes heard and missed, signal strength against distance, and the last 48
+hours (kept in `data/cache/rf-history.json`). It links to the Pi's own graphs1090 for longer history.
 
 ## Your local airport
 
@@ -252,7 +252,7 @@ departures go and where its arrivals come from, as shares of each day or the las
 low near the airport (by default lower than 5,000 ft above it, within 30 km); its far end comes from its route. Flights
 that came low near the airport although their route doesn't use it, such as diversions, are listed separately.
 
-## Air traffic control radio
+## Air traffic control audio
 
 Look Up can listen to the local tower and ground frequencies, work out which plane each call is to or from, and show
 what's happening on that plane's card in plain words ("Cleared to land on runway 27"), playing its recent calls as the
@@ -268,7 +268,7 @@ has it), and "Westjet 63" is WJA603 when no other WestJet nearby is one digit of
 list but not shown on cards. With `ANTHROPIC_API_KEY` set, Claude (Haiku 5.5) writes the one-line summary from the
 plane's last few calls and its altitude and speed; without it, a built-in phrase list is used. A summary costs about
 $0.0003; they're only written for planes close enough to get a card, at most 30 an hour, out of a hard monthly budget
-(default $2, spread over the days left; Settings → Air traffic control radio).
+(default $2, spread over the days left; Settings → ATC audio).
 
 **What to expect.** Tested on a real 35-minute CYXE Ground/Tower recording (243 calls): the large model hears about
 twice as many callsigns as `small.en`, but plenty still come out garbled, and much of the traffic at a training airport
@@ -282,7 +282,7 @@ with airliners, charters and anything with ADS-B are the ones that land on cards
    model (about 570 MB). It takes about 8 s a call on 16 older Xeon cores, which keeps up with a busy tower; on a slower
    machine set `WHISPER_MODEL: small.en` and remove `WHISPER_ARGS` (3× faster, about half as many callsigns heard).
 2. Optionally add `ANTHROPIC_API_KEY` to the `look-up` service's environment for the Claude summaries.
-3. In `/admin` → **Air traffic control radio**, tick _Listen_, set the local facility name (e.g. `Saskatoon`), and pick
+3. In `/admin` → **ATC audio**, tick _Listen_, set the local facility name (e.g. `Saskatoon`), and pick
    where the audio comes from.
 
 **Where the audio comes from**

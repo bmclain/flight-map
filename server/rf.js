@@ -237,6 +237,7 @@ export class RfMonitor {
     this.latest = null; // { at, stats }
     this.outline = null; // { at, points: [[bearing, km]] }
     this.lastError = null;
+    this.assessment = null; // { at, verdict, counts } for the Overview tab, refreshed every minute
   }
 
   get base() {
@@ -303,7 +304,33 @@ export class RfMonitor {
       if (a.via === 'antenna' && a.rssi != null && a.distanceKm != null) this.signal.push([now, a.distanceKm, a.rssi]);
     }
     this.signal = this.signal.filter(([t]) => now - t < COVERAGE_WINDOW_MS);
+    const { list } = this.#assess(now);
+    this.assessment = {
+      at: now,
+      verdict: verdict(list),
+      problems: list.filter((c) => c.status === 'bad').length,
+      warnings: list.filter((c) => c.status === 'warn').length,
+    };
     return entry;
+  }
+
+  /** The checks, from the latest 15-minute numbers and the last hour's coverage. */
+  #assess(now) {
+    const merged = !!this.getConfig().source.supplement;
+    const recent = this.history.filter((s) => now - s.t < COVERAGE_WINDOW_MS);
+    // Coverage over the last hour: each minute's sightings added up.
+    const coverage = {
+      bands: BANDS.map((range, i) => {
+        const heard = recent.reduce((sum, s) => sum + (s.bands?.[i]?.[0] ?? 0), 0);
+        const total = recent.reduce((sum, s) => sum + (s.bands?.[i]?.[1] ?? 0), 0);
+        return { range, heard, total, pct: pct(heard, total) };
+      }),
+      farthestHeard: recent.reduce((m, s) => Math.max(m, s.farthestHeard ?? 0), 0) || null,
+      farthestThere: recent.reduce((m, s) => Math.max(m, s.farthestThere ?? 0), 0) || null,
+      minutes: recent.length,
+    };
+    const numbers = radioNumbers(this.latest.stats, 'last15min');
+    return { numbers, coverage, merged, list: checks({ now: numbers, coverage, merged }) };
   }
 
   async #outline(now) {
@@ -339,21 +366,7 @@ export class RfMonitor {
     if (!this.latest || now - this.latest.at > 2 * SAMPLE_MS) await this.sample(now);
     if (!this.latest)
       return { available: false, reason: this.lastError?.message ?? 'No reading from the receiver yet.' };
-    const merged = !!src.supplement;
-    const recent = this.history.filter((s) => now - s.t < COVERAGE_WINDOW_MS);
-    // Coverage over the last hour: each minute's sightings added up.
-    const coverage = {
-      bands: BANDS.map((range, i) => {
-        const heard = recent.reduce((sum, s) => sum + (s.bands?.[i]?.[0] ?? 0), 0);
-        const total = recent.reduce((sum, s) => sum + (s.bands?.[i]?.[1] ?? 0), 0);
-        return { range, heard, total, pct: pct(heard, total) };
-      }),
-      farthestHeard: recent.reduce((m, s) => Math.max(m, s.farthestHeard ?? 0), 0) || null,
-      farthestThere: recent.reduce((m, s) => Math.max(m, s.farthestThere ?? 0), 0) || null,
-      minutes: recent.length,
-    };
-    const numbers = radioNumbers(this.latest.stats, 'last15min');
-    const list = checks({ now: numbers, coverage, merged });
+    const { numbers, coverage, merged, list } = this.#assess(now);
     const { receiver } = this.getConfig();
     return {
       available: true,
@@ -399,6 +412,13 @@ export class RfMonitor {
   }
 
   status() {
-    return { base: this.base, samples: this.history.length, lastError: this.lastError };
+    return {
+      base: this.base,
+      samples: this.history.length,
+      lastError: this.lastError,
+      // Only while the receiver is the source and the reading is fresh.
+      assessment:
+        this.base && this.assessment && Date.now() - this.assessment.at < 3 * SAMPLE_MS ? this.assessment : null,
+    };
   }
 }

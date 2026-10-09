@@ -134,6 +134,8 @@ export class Tracker {
         mlat: ac.mlat,
         // 'antenna' (your receiver) or 'online' (adsb.lol only); null for the simulator.
         via: ac.via ?? null,
+        // Signal strength at your antenna (dBFS), when it heard the plane.
+        rssi: ac.via === 'antenna' || ac.heardByAntenna ? (ac.rssi ?? null) : null,
         firstSeen: s.firstSeen,
         ...extra,
       };

@@ -19,20 +19,29 @@
         </div>
       </div>
       <nav class="top-links">
+        <a class="btn ghost" href="/rf">RF status</a>
         <a class="btn ghost" href="/traffic">Daily traffic</a>
         <a class="btn ghost" href="/display" target="_blank" rel="noopener">Open display ↗</a>
       </nav>
     </header>
 
+    <nav class="tabs" role="tablist" aria-label="Settings">
+      <button type="button" role="tab" data-tab="overview">Overview</button>
+      <button type="button" role="tab" data-tab="display">Display</button>
+      <button type="button" role="tab" data-tab="data">Aircraft data</button>
+      <button type="button" role="tab" data-tab="radio">Radio</button>
+      <button type="button" role="tab" data-tab="traffic">Traffic &amp; alerts</button>
+    </nav>
+
     <main class="grid">
       <!-- Status ---------------------------------------------------------------->
-      <section class="card span-2" id="status-card">
+      <section data-tab="overview" class="card span-2" id="status-card">
         <h2>Status</h2>
         <div class="status-grid" id="status"></div>
       </section>
 
       <!-- Receiver --------------------------------------------------------------->
-      <section class="card">
+      <section data-tab="data" class="card">
         <h2>Receiver location</h2>
         <p class="help">
           Where the antenna (and the screen) are. Distances, directions and "look up" angles are measured from here.
@@ -54,7 +63,7 @@
       </section>
 
       <!-- Data source ------------------------------------------------------------->
-      <section class="card">
+      <section data-tab="data" class="card">
         <h2>Aircraft data</h2>
         <div class="choices" role="radiogroup">
           <label class="choice">
@@ -117,7 +126,7 @@
       </section>
 
       <!-- Screen orientation ---------------------------------------------------------->
-      <section class="card span-2">
+      <section data-tab="display" class="card span-2">
         <h2>Which way the screen faces</h2>
         <p class="help">
           The arrow on the display points from the viewer to the aircraft. For that to work it needs to know which
@@ -165,7 +174,7 @@
       </section>
 
       <!-- Cycling ------------------------------------------------------------------>
-      <section class="card">
+      <section data-tab="display" class="card">
         <h2>Cycling through aircraft</h2>
         <div class="row-2">
           <label
@@ -207,7 +216,7 @@
       </section>
 
       <!-- Map -------------------------------------------------------------------------->
-      <section class="card">
+      <section data-tab="display" class="card">
         <h2>Map overview</h2>
         <div class="row-2">
           <label
@@ -306,7 +315,7 @@
       </section>
 
       <!-- Look & feel ------------------------------------------------------------------>
-      <section class="card">
+      <section data-tab="display" class="card">
         <h2>Look &amp; feel</h2>
         <div class="row-2">
           <label
@@ -343,7 +352,7 @@
       </section>
 
       <!-- Lookups ------------------------------------------------------------------------>
-      <section class="card">
+      <section data-tab="data" class="card">
         <h2>Photos &amp; routes</h2>
         <label
           >Photos
@@ -386,7 +395,7 @@
       </section>
 
       <!-- FlightAware ------------------------------------------------------------------------>
-      <section class="card" id="flightaware-settings">
+      <section data-tab="data" class="card" id="flightaware-settings">
         <h2>FlightAware</h2>
         <p class="help">
           FlightAware's AeroAPI fills in routes the free sources don't know, with the real take-off time and its landing
@@ -421,7 +430,7 @@
       </section>
 
       <!-- Daily traffic ------------------------------------------------------------------->
-      <section class="card" id="traffic-settings">
+      <section data-tab="traffic" class="card" id="traffic-settings">
         <h2>Daily traffic</h2>
         <p class="help">
           The <a href="/traffic">daily traffic</a> page can show where flights from your local airport go, and where its
@@ -458,7 +467,7 @@
       </section>
 
       <!-- Air traffic control radio ------------------------------------------------------->
-      <section class="card span-2" id="atc-settings">
+      <section data-tab="radio" class="card span-2" id="atc-settings">
         <h2>Air traffic control radio</h2>
         <p class="help">
           Listens to tower and ground radio, works out which plane each call is to or from, and shows what's going on in
@@ -545,7 +554,7 @@
       </section>
 
       <!-- Special aircraft ---------------------------------------------------------------->
-      <section class="card span-2" id="special-settings">
+      <section data-tab="traffic" class="card span-2" id="special-settings">
         <h2>Special aircraft</h2>
         <p class="help">
           Police, air ambulance, military and government aircraft get a coloured badge. Many are recognised from the
@@ -558,7 +567,7 @@
       </section>
 
       <!-- Preview ------------------------------------------------------------------------->
-      <section class="card span-2">
+      <section data-tab="overview" class="card span-2">
         <h2>Preview <small class="muted">(live, uses saved settings)</small></h2>
         <div class="preview"><iframe id="preview" title="Display preview" src="about:blank"></iframe></div>
       </section>

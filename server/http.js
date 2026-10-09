@@ -23,6 +23,7 @@ const PAGES = {
   '/display': path.join(ROOT, 'public', 'display.html'),
   '/admin': path.join(ROOT, 'public', 'admin.html'),
   '/traffic': path.join(ROOT, 'public', 'traffic.html'),
+  '/rf': path.join(ROOT, 'public', 'rf.html'),
   '/manifest.webmanifest': path.join(ROOT, 'public', 'manifest.webmanifest'),
 };
 
@@ -116,6 +117,8 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
       }),
 
     'GET /api/status': (req, res) => sendJson(res, 200, app.status()),
+
+    'GET /api/rf': async (req, res) => sendJson(res, 200, await app.rf.report()),
 
     'GET /api/atc/recent': (req, res) => sendJson(res, 200, { transmissions: app.atc.recent() }),
 

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Look Up · RF status</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/css/fonts.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/rf.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <img src="/favicon.svg" alt="" width="32" height="32" />
+        <div>
+          <h1>Look Up</h1>
+          <p>RF status</p>
+        </div>
+      </div>
+      <nav class="top-links">
+        <a class="btn ghost" id="graphs-link" href="#" target="_blank" rel="noopener" hidden>Pi graphs ↗</a>
+        <a class="btn ghost" href="/admin">Settings</a>
+        <a class="btn ghost" href="/display" target="_blank" rel="noopener">Open display ↗</a>
+      </nav>
+    </header>
+
+    <main class="grid viz-root" id="rf" aria-busy="true">
+      <section class="card span-2 verdict" id="verdict">
+        <div class="verdict-head">
+          <span class="status-icon" id="verdict-icon" aria-hidden="true"></span>
+          <div>
+            <h2 id="verdict-title">Checking the receiver…</h2>
+            <p class="muted" id="verdict-sub"></p>
+          </div>
+        </div>
+        <ul class="checks" id="checks"></ul>
+      </section>
+
+      <section class="card span-2">
+        <h2>Right now <small class="muted">(last 15 minutes)</small></h2>
+        <div class="tiles" id="tiles"></div>
+      </section>
+
+      <div class="col">
+        <section class="card">
+          <h2>Planes heard, by distance</h2>
+          <p class="help" id="coverage-help">
+            Of the planes the online feed (adsb.lol) saw in the last hour, the share your antenna heard. A good antenna
+            hears nearly all of them close in, and most out to 200 km.
+          </p>
+          <div class="chart" id="coverage"></div>
+        </section>
+        <section class="card">
+          <h2>Signal strength by distance</h2>
+          <p class="help">
+            Each dot is a plane your antenna heard in the last hour. Signals fade with distance; when they reach the
+            noise floor, planes are lost. Weak signals close in point to the antenna or its cable.
+          </p>
+          <div class="chart" id="signal"></div>
+        </section>
+      </div>
+      <div class="col">
+        <section class="card">
+          <h2>Range by direction</h2>
+          <p class="help">
+            The outline is the furthest your antenna has heard planes in each direction over the last 24 hours. Dots are
+            the planes up now.
+          </p>
+          <div class="legend" id="polar-legend">
+            <span><i class="key heard"></i>Heard by your antenna</span>
+            <span><i class="key missed"></i>Only the online feed has it</span>
+          </div>
+          <div class="chart polar" id="polar"></div>
+        </section>
+        <section class="card">
+          <h2>Settings on the Pi</h2>
+          <dl class="facts" id="facts"></dl>
+          <p class="help">
+            Gain is set by readsb's autogain. The Pi's own graphs (graphs1090) keep months of history; the link is at
+            the top of the page.
+          </p>
+        </section>
+      </div>
+
+      <section class="card span-2">
+        <h2>Last 48 hours</h2>
+        <div class="multiples" id="history"></div>
+      </section>
+    </main>
+
+    <div class="tooltip" id="tooltip" role="status" hidden></div>
+    <script type="module" src="/js/rf.js"></script>
+  </body>
+</html>

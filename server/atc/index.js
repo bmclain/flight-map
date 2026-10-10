@@ -24,7 +24,16 @@ export class AtcService {
    * @param {() => object[]} opts.candidates  aircraft that could be on frequency:
    *   { hex, callsign, reg, telephony, typeName, airline, altFt, onGround, … }
    */
-  constructor({ dataDir, getConfig, candidates, log = console, fetchImpl = fetch, summarizer = null, env }) {
+  constructor({
+    dataDir,
+    getConfig,
+    candidates,
+    log = console,
+    fetchImpl = fetch,
+    summarizer = null,
+    env,
+    usage = null,
+  }) {
     this.dataDir = dataDir;
     this.clipDir = path.join(dataDir, 'atc', 'clips');
     this.getConfig = getConfig;
@@ -37,6 +46,7 @@ export class AtcService {
         log,
         env,
         dataDir,
+        usage,
         limits: () => ({ budget: this.cfg.summaryBudgetUsd, perHour: this.cfg.summariesPerHour }),
       });
     this.transmissions = []; // oldest first

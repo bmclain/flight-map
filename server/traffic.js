@@ -6,6 +6,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { distanceM } from '../shared/geo.js';
+import { explore } from './traffic-explore.js';
 
 // A plane not seen for this long that turns up again counts as a new visit.
 const VISIT_GAP_MS = 20 * 60_000;
@@ -316,6 +317,9 @@ export class TrafficLog {
       v.to = airportBrief(ac.route.destination);
     }
     if (ac.route?.via) v.via ??= ac.route.via;
+    // Where it was seen: your antenna, or only the online feed (with antenna + online fill-in).
+    if (ac.via === 'antenna') v.antenna = true;
+    else if (ac.via === 'online') v.online = true;
     if (ac.cargo) v.cargo = true;
     if (ac.military) v.military = true;
     if (ac.special && !v.special) v.special = { kind: ac.special.kind, name: ac.special.name };
@@ -442,6 +446,38 @@ export class TrafficLog {
   #airport() {
     const apt = this.getConfig().traffic?.airport;
     return apt?.code ? apt : null;
+  }
+
+  /**
+   * The explorer: the days from `from` to `to` (at most 90), filtered and
+   * grouped (see server/traffic-explore.js). `ctx.manufacturer(code)` names
+   * a type's maker.
+   */
+  async explore({ from, to, ...opts }, ctx = {}, now = Date.now()) {
+    const last = to && to <= dayKey(now) ? to : dayKey(now);
+    let first = from && from <= last ? from : last;
+    if (addDays(first, 89) < last) first = addDays(last, -89);
+    const dates = [];
+    for (let d = first; d <= last; d = addDays(d, 1)) dates.push(d);
+    const visits = [];
+    for (const date of dates) {
+      // A copy with its day, so the live visits (saved to disk) aren't touched.
+      for (const v of await this.#exploreVisits(date, now)) visits.push({ ...v, day: date });
+    }
+    return { from: first, to: last, ...explore(visits, { ...opts, dates }, ctx) };
+  }
+
+  /** A day's visits; finished days are kept in memory once read (the last 100). */
+  async #exploreVisits(date, now) {
+    if (date >= dayKey(now) || this.days.has(date)) return this.#visits(date);
+    this.visitCache ??= new Map();
+    let visits = this.visitCache.get(date);
+    if (!visits) {
+      visits = (await this.#read(date)) ?? [];
+      this.visitCache.set(date, visits);
+      if (this.visitCache.size > 100) this.visitCache.delete(this.visitCache.keys().next().value);
+    }
+    return visits;
   }
 
   /** Flight counts for the `days` days ending with `date`, oldest first. */

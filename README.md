@@ -245,6 +245,28 @@ planes adsb.lol sees your antenna hears at each distance, which is the clearest 
 Charts: range by direction with today's planes heard and missed, signal strength against distance, and the last 48
 hours (kept in `data/cache/rf-history.json`). It links to the Pi's own graphs1090 for longer history.
 
+## API usage
+
+**Settings → Overview → API usage** shows what the outside services have been used for. Every request look-up makes to
+an outside service is counted per day (local network addresses such as your Pi and Whisper are left out), kept for 120
+days in `data/cache/usage.json`:
+
+- **Claude** (ATC summaries) and **FlightAware**: spent this month against their caps, today, tokens or queries, and
+  the last 30 days; FlightAware's own usage figure alongside ours.
+- **adsb.lol**: requests today (live feed and flight paths), how many it refused for coming too often, the last 30 days.
+- adsb.im, adsbdb, planespotters and Wikipedia: requests and failures.
+
+## Exploring the traffic
+
+The traffic page has two views. **One day** is the day's summary. **Explore** slices everything logged over today,
+yesterday, or the last 7, 30 or 90 days, grouped by airline, who flies it (airlines, cargo, private, military, police…),
+aircraft type, manufacturer, kind, route, where it's coming from or going to, hour, day of the week, height or distance
+when closest, top speed, whether it came within card range, or whether your antenna heard it — counting flights or
+different aircraft. Clicking a bar filters to it and looks one level in (an airline → its types); filters show as chips
+and narrow every chart: the ranked groups, flights over time, an hour × weekday grid, height and distance spreads, and
+the matching flights. The address keeps the view (`/traffic#explore?range=30&group=type&f.airline=WJA`), so it can be
+bookmarked.
+
 ## Your local airport
 
 Set **Settings → Daily traffic → Local airport** (code, position and elevation) and the traffic page shows where its
@@ -378,6 +400,8 @@ first-run seeds `RECEIVER_LAT`, `RECEIVER_LON`, `RECEIVER_ALT_M`, `SOURCE_URL` (
 | `GET /api/aircraft`            | enriched aircraft in range, nearest first (`?trails` for position history)     |
 | `GET /api/aircraft/:hex/track` | the flight since take-off (adsb.lol) for an aircraft being tracked             |
 | `GET /api/aircraft/:hex/radio` | its air traffic control calls lately, with transcripts and audio               |
+| `GET /api/usage`               | outside services used: per day for 30 days, with the paid ones' caps           |
+| `GET /api/traffic/explore`     | `?from&to&group&measure&q&f.<dimension>=keys`: the explorer's data             |
 | `GET /api/rf`                  | receiver health: checks, verdict, coverage, range outline, 48-hour history     |
 | `GET /api/atc/recent`          | the last 50 calls heard, matched or not                                        |
 | `GET /api/config` / `PUT`      | read / update settings (PUT accepts partial objects; 400 lists invalid fields) |

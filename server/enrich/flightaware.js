@@ -105,7 +105,8 @@ export function routeFromFlight(f, airports) {
 }
 
 export class FlightAware {
-  constructor({ apiKey, dataDir, getConfig, airports = null, log = console, fetchImpl = fetch }) {
+  constructor({ apiKey, dataDir, getConfig, airports = null, log = console, fetchImpl = fetch, usage = null }) {
+    this.usage = usage;
     this.apiKey = apiKey || '';
     this.getConfig = getConfig;
     this.airports = airports;
@@ -299,6 +300,7 @@ export class FlightAware {
         throw Object.assign(new Error(refused.reason), { refused: true });
       }
       await this.ledger.charge(endpoint, cost);
+      this.usage?.record('flightaware', { costUsd: cost });
     }
     const url = new URL(`${API}${pathname}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);

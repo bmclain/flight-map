@@ -6,6 +6,7 @@ import { distanceUnit, formatDistance, joinUnit, kmToUnit, unitToKm } from '/sha
 import { TILE_PROVIDERS, tileSpec } from '/shared/tiles.js';
 import { SPECIAL_KINDS, SPECIAL_LABELS } from '/shared/special-kinds.js';
 import { startRf, stopRf } from './rf.js';
+import { startUsage, stopUsage } from './usage.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -240,7 +241,7 @@ async function apiFetch(url, opts = {}, retry = true) {
 
 // ---- tabs ------------------------------------------------------------------------------
 
-const TABS = $$('.tabs [data-tab]').map((b) => b.dataset.tab);
+const TABS = $$('.page-tabs [data-tab]').map((b) => b.dataset.tab);
 // Old addresses still land on the right tab.
 const RENAMED = { radio: 'atc', rf: 'receiver' };
 
@@ -248,7 +249,7 @@ const RENAMED = { radio: 'atc', rf: 'receiver' };
 function showTab(name) {
   name = RENAMED[name] ?? name;
   if (!TABS.includes(name)) name = TABS[0];
-  for (const b of $$('.tabs [data-tab]')) {
+  for (const b of $$('.page-tabs [data-tab]')) {
     const on = b.dataset.tab === name;
     b.setAttribute('aria-selected', String(on));
     b.tabIndex = on ? 0 : -1;
@@ -260,19 +261,21 @@ function showTab(name) {
   // Receiver health only asks the Pi while it's open.
   if (name === 'receiver') startRf();
   else stopRf();
+  if (name === 'overview') startUsage();
+  else stopUsage();
 }
 
-$('.tabs').addEventListener('click', (e) => {
+$('.page-tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (b) showTab(b.dataset.tab);
 });
-$('.tabs').addEventListener('keydown', (e) => {
+$('.page-tabs').addEventListener('keydown', (e) => {
   const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
   if (!step) return;
   const i = TABS.indexOf(document.activeElement?.dataset.tab);
   const next = TABS[(i + step + TABS.length) % TABS.length];
   showTab(next);
-  $(`.tabs [data-tab="${next}"]`).focus();
+  $(`.page-tabs [data-tab="${next}"]`).focus();
 });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 showTab(location.hash.slice(1));

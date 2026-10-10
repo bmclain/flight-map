@@ -97,7 +97,7 @@ h3 {
   font-size: 13px;
 }
 
-.tabs {
+.page-tabs {
   display: flex;
   gap: 4px;
   max-width: 1200px;
@@ -107,7 +107,7 @@ h3 {
   overflow-x: auto;
   scrollbar-width: none;
 }
-.tabs button {
+.page-tabs button {
   flex: 0 0 auto;
   padding: 10px 14px;
   border: 0;
@@ -119,14 +119,14 @@ h3 {
   font-weight: 600;
   cursor: pointer;
 }
-.tabs button:hover {
+.page-tabs button:hover {
   color: var(--text);
 }
-.tabs button[aria-selected='true'] {
+.page-tabs button[aria-selected='true'] {
   color: var(--text);
   border-bottom-color: var(--accent);
 }
-.tabs button:focus-visible {
+.page-tabs button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   border-radius: 6px 6px 0 0;
@@ -661,4 +661,122 @@ legend label.check {
 }
 .rf-tab {
   display: contents;
+}
+
+/* ---- Overview → API usage ---- */
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 980px) {
+  .usage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.usage-panel {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.usage-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.usage-panel h3 {
+  margin: 0;
+}
+.usage-head {
+  margin-top: 10px;
+}
+.usage-panel .big {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+}
+.usage-panel .big small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.small {
+  font-size: 12.5px;
+}
+.usage-panel .small {
+  margin: 6px 0 0;
+}
+.chart-title {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.pill-text {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  color: var(--muted);
+}
+.pill-text.ok {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+.pill-text.warn {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+/* The monthly cap: fill carries severity; the track is the same hue, lighter. */
+.viz-root .meter {
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--series-1) 18%, transparent);
+}
+.viz-root .meter span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 99px;
+  background: var(--series-1);
+}
+.viz-root .meter.warning {
+  background: color-mix(in srgb, var(--status-warning) 22%, transparent);
+}
+.viz-root .meter.warning span {
+  background: var(--status-warning);
+}
+.viz-root .meter.critical {
+  background: color-mix(in srgb, var(--status-critical) 20%, transparent);
+}
+.viz-root .meter.critical span {
+  background: var(--status-critical);
+}
+.meter-label {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.usage-table th,
+.usage-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.usage-table th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.usage-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

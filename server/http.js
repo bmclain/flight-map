@@ -5,6 +5,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDayKey } from './traffic.js';
+import { DIMENSIONS } from '../shared/traffic-dims.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODULES = path.join(ROOT, 'node_modules');
@@ -119,12 +120,47 @@ export function createHttpServer(app, { adminPassword = '' } = {}) {
 
     'GET /api/rf': async (req, res) => sendJson(res, 200, await app.rf.report()),
 
+    'GET /api/usage': (req, res) => sendJson(res, 200, app.usageReport()),
+
     'GET /api/atc/recent': (req, res) => sendJson(res, 200, { transmissions: app.atc.recent() }),
 
     'GET /api/traffic': async (req, res, url) => {
       const date = url.searchParams.get('date');
       if (date && !isDayKey(date)) return sendJson(res, 400, { error: 'date must be YYYY-MM-DD' });
       sendJson(res, 200, await app.traffic.summary(date || undefined));
+    },
+
+    // The traffic explorer: ?from=&to=&group=&measure=&q=&f.<dimension>=key1,key2
+    'GET /api/traffic/explore': async (req, res, url) => {
+      const p = url.searchParams;
+      const from = p.get('from') ?? undefined;
+      const to = p.get('to') ?? undefined;
+      if ((from && !isDayKey(from)) || (to && !isDayKey(to))) {
+        return sendJson(res, 400, { error: 'from and to must be YYYY-MM-DD' });
+      }
+      const group = p.get('group') ?? 'airline';
+      if (!DIMENSIONS[group]) return sendJson(res, 400, { error: `unknown dimension ${group}` });
+      const filters = {};
+      for (const [k, v] of p) {
+        const dim = k.startsWith('f.') ? k.slice(2) : null;
+        if (dim && DIMENSIONS[dim]) filters[dim] = v.split(',');
+      }
+      const types = app.enricher.types;
+      sendJson(
+        res,
+        200,
+        await app.traffic.explore(
+          {
+            from,
+            to,
+            group,
+            measure: p.get('measure') === 'aircraft' ? 'aircraft' : 'flights',
+            filters,
+            q: p.get('q') ?? '',
+          },
+          { manufacturer: (code) => types.describe(code)?.manufacturer || null },
+        ),
+      );
     },
 
     'POST /api/source/test': async (req, res) => {

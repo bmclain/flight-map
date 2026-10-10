@@ -63,7 +63,7 @@ export function cleanAirlineName(name) {
 const CACHE_SAVE_MS = 5 * 60_000;
 
 export class Enricher {
-  constructor({ dataDir, getConfig, log = console, fetchImpl = fetch, env = process.env }) {
+  constructor({ dataDir, getConfig, log = console, fetchImpl = fetch, env = process.env, usage = null }) {
     this.dataDir = dataDir;
     this.dbDir = path.join(dataDir, 'cache', 'tar1090');
     this.getConfig = getConfig;
@@ -89,6 +89,7 @@ export class Enricher {
       airports: this.airports,
       log,
       fetchImpl,
+      usage,
     });
     this.dbState = { types: 0, operators: 0, aircraft: 0, loading: false, lastError: null };
     this.timers = [];

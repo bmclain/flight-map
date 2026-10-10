@@ -57,8 +57,17 @@ export class Summarizer {
    * @param {() => {budget: number, perHour: number}} [opts.limits]  monthly budget in US$ and requests an hour
    * @param {string} [opts.dataDir]  where the spending ledger is kept (none: in memory only, for tests)
    */
-  constructor({ log = console, client = null, model = SUMMARY_MODEL, env = process.env, dataDir = null, limits }) {
+  constructor({
+    log = console,
+    client = null,
+    model = SUMMARY_MODEL,
+    env = process.env,
+    dataDir = null,
+    limits,
+    usage = null,
+  }) {
     this.log = log;
+    this.usage = usage; // the API usage card: requests, tokens and money
     this.model = model;
     this.limits = limits ?? (() => ({ budget: 2, perHour: 30 }));
     this.calls = []; // times of recent requests, for the hourly cap
@@ -127,7 +136,14 @@ export class Summarizer {
       const used = response.usage ?? {};
       this.state.inputTokens += used.input_tokens ?? 0;
       this.state.outputTokens += used.output_tokens ?? 0;
-      await this.ledger.adjust(costOf(this.model, used.input_tokens ?? 0, used.output_tokens ?? MAX_TOKENS) - estimate);
+      const cost = costOf(this.model, used.input_tokens ?? 0, used.output_tokens ?? MAX_TOKENS);
+      await this.ledger.adjust(cost - estimate);
+      this.usage?.record('anthropic', {
+        requests: 1,
+        costUsd: cost,
+        inputTokens: used.input_tokens ?? 0,
+        outputTokens: used.output_tokens ?? 0,
+      });
       if (response.stop_reason === 'refusal') return null;
       const text = response.content
         .filter((b) => b.type === 'text')
@@ -140,6 +156,11 @@ export class Summarizer {
       return text.length > 140 ? `${text.slice(0, 137).replace(/\s+\S*$/, '')}…` : text;
     } catch (err) {
       this.state.failures++;
+      this.usage?.record('anthropic', {
+        requests: 1,
+        errors: 1,
+        rateLimited: err instanceof Anthropic.RateLimitError ? 1 : 0,
+      });
       const message =
         err instanceof Anthropic.AuthenticationError
           ? 'Anthropic API key was rejected'

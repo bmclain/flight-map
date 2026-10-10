@@ -7,6 +7,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/css/fonts.css" />
     <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/viz.css" />
     <link rel="stylesheet" href="/css/traffic.css" />
   </head>
   <body>
@@ -24,8 +25,13 @@
       </nav>
     </header>
 
+    <nav class="page-tabs" role="tablist" aria-label="Traffic views">
+      <button type="button" role="tab" data-tab="day">One day</button>
+      <button type="button" role="tab" data-tab="explore">Explore</button>
+    </nav>
+
     <main class="grid">
-      <section class="card span-2 day-head">
+      <section data-tab="day" class="card span-2 day-head">
         <div class="day-nav">
           <button type="button" class="btn ghost" id="prev" aria-label="Previous day">‹</button>
           <div>
@@ -39,12 +45,12 @@
         <div class="tiles" id="tiles"></div>
       </section>
 
-      <section class="card span-2">
+      <section data-tab="day" class="card span-2">
         <h2>Busiest times <small class="muted">flights first seen in each hour</small></h2>
         <div class="chart" id="hourly"></div>
       </section>
 
-      <section class="card span-2" id="apt-card">
+      <section data-tab="day" class="card span-2" id="apt-card">
         <div class="tally-head">
           <h2 id="apt-title">Local airport</h2>
           <div class="tabs" role="tablist" id="apt-tabs">
@@ -72,7 +78,7 @@
         </div>
       </section>
 
-      <section class="card span-2">
+      <section data-tab="day" class="card span-2">
         <div class="tally-head">
           <h2>Daily tally</h2>
           <div class="tabs" role="tablist" id="tally-tabs">
@@ -88,37 +94,92 @@
         <div class="tally-wrap"><table class="tally" id="tally"></table></div>
       </section>
 
-      <section class="card">
+      <section data-tab="day" class="card">
         <h2>Notable</h2>
         <dl class="notable" id="notable"></dl>
       </section>
 
-      <section class="card">
+      <section data-tab="day" class="card">
         <h2>Last 30 days</h2>
         <div class="chart" id="history"></div>
       </section>
 
-      <section class="card">
+      <section data-tab="day" class="card">
         <h2>Top routes</h2>
         <ol class="bars" id="routes"></ol>
       </section>
 
-      <section class="card">
+      <section data-tab="day" class="card">
         <h2>Top airports <small class="muted">to or from</small></h2>
         <ol class="bars" id="airports"></ol>
       </section>
 
-      <section class="card span-2">
+      <section data-tab="day" class="card span-2">
         <div class="tally-head">
           <h2>Flight log <small class="muted" id="log-count"></small></h2>
           <input type="search" id="log-filter" placeholder="Filter: callsign, type, airline, airport…" />
         </div>
         <div class="tally-wrap"><table class="log" id="log"></table></div>
       </section>
+
+      <!-- Explore: slice the logged flights any way you like ----------------------------->
+      <section data-tab="explore" class="card span-2 viz-root ex-controls" id="ex-controls" hidden>
+        <div class="ex-row">
+          <div class="seg" id="ex-range" role="radiogroup" aria-label="Days">
+            <button type="button" data-v="today">Today</button>
+            <button type="button" data-v="yesterday">Yesterday</button>
+            <button type="button" data-v="7">7 days</button>
+            <button type="button" data-v="30">30 days</button>
+            <button type="button" data-v="90">90 days</button>
+          </div>
+          <label class="inline"
+            >Group by
+            <select id="ex-group"></select>
+          </label>
+          <div class="seg" id="ex-measure" role="radiogroup" aria-label="Count">
+            <button type="button" data-v="flights">Flights</button>
+            <button type="button" data-v="aircraft">Different aircraft</button>
+          </div>
+          <input type="search" id="ex-q" placeholder="Search: callsign, type, airline, airport…" />
+        </div>
+        <div class="chips" id="ex-chips"></div>
+        <div class="tiles" id="ex-tiles"></div>
+      </section>
+      <section data-tab="explore" class="card span-2 viz-root" hidden>
+        <div class="tally-head">
+          <h2 id="ex-group-title">By airline</h2>
+          <span class="muted small" id="ex-group-hint">Click a bar to look inside it.</span>
+        </div>
+        <div class="chart" id="ex-groups"></div>
+      </section>
+      <section data-tab="explore" class="card viz-root" hidden>
+        <h2 id="ex-trend-title">Over time</h2>
+        <div class="chart" id="ex-trend"></div>
+      </section>
+      <section data-tab="explore" class="card viz-root" hidden>
+        <h2>When <small class="muted">day of the week × hour first seen</small></h2>
+        <div class="chart" id="ex-heat"></div>
+      </section>
+      <section data-tab="explore" class="card viz-root" hidden>
+        <h2>Height when closest</h2>
+        <div class="chart" id="ex-alt"></div>
+      </section>
+      <section data-tab="explore" class="card viz-root" hidden>
+        <h2>Closest distance</h2>
+        <div class="chart" id="ex-dist"></div>
+      </section>
+      <section data-tab="explore" class="card span-2 viz-root" hidden>
+        <div class="tally-head">
+          <h2>Flights <small class="muted" id="ex-count"></small></h2>
+        </div>
+        <div class="tally-wrap"><table class="log" id="ex-log"></table></div>
+        <div class="more-row" id="ex-more"></div>
+      </section>
     </main>
 
     <div class="tooltip" id="tip" role="tooltip" hidden></div>
 
     <script type="module" src="/js/traffic.js"></script>
+    <script type="module" src="/js/explore.js"></script>
   </body>
 </html>

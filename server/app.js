@@ -10,6 +10,7 @@ import { AtcService } from './atc/index.js';
 import { HttpSource, expandUrl } from './sources/http.js';
 import { MergedSource } from './sources/merged.js';
 import { RfMonitor } from './rf.js';
+import { UsageLog } from './util/usage.js';
 import { SimulatorSource } from './sources/simulator.js';
 
 const BROADCAST_MS = 1000;
@@ -19,10 +20,13 @@ export class App {
     this.dataDir = dataDir;
     this.log = log;
     this.env = env;
+    // Every request to an outside service is counted (Settings → Overview → API usage).
+    this.usage = new UsageLog({ file: path.join(dataDir, 'cache', 'usage.json'), log });
+    fetchImpl = this.usage.meter(fetchImpl);
     this.fetch = fetchImpl;
     this.configStore = new ConfigStore(dataDir, { env, log });
     this.getConfig = () => this.configStore.get();
-    this.enricher = new Enricher({ dataDir, getConfig: this.getConfig, log, fetchImpl, env });
+    this.enricher = new Enricher({ dataDir, getConfig: this.getConfig, log, fetchImpl, env, usage: this.usage });
     this.tracker = new Tracker({ getConfig: this.getConfig, enricher: this.enricher });
     this.traffic = new TrafficLog({ dataDir, getConfig: this.getConfig, log });
     this.atc = new AtcService({
@@ -32,6 +36,7 @@ export class App {
       log,
       fetchImpl,
       env,
+      usage: this.usage,
     });
     this.tracker.radio = (hex) => this.atc.brief(hex);
     this.rf = new RfMonitor({ dataDir, getConfig: this.getConfig, tracker: this.tracker, log, fetchImpl });
@@ -45,6 +50,7 @@ export class App {
 
   async start({ loadDatabases = true } = {}) {
     await this.configStore.load();
+    await this.usage.load();
     await this.enricher.init({ loadDatabases });
     await this.traffic.start();
     try {
@@ -78,6 +84,7 @@ export class App {
     this.source?.stop();
     this.atc.stop();
     await this.rf.stop();
+    await this.usage.stop();
     await this.traffic.stop();
     await this.tracker.saveTracks(this.tracksFile).catch((err) => this.log.warn(`tracks: ${err.message}`));
     for (const res of this.clients) res.end();
@@ -212,6 +219,44 @@ export class App {
       ...(s.type === 'merged'
         ? { antennaOk: s.antenna.ok, antennaError: s.antenna.lastError, onlineOk: s.online.ok }
         : {}),
+    };
+  }
+
+  /**
+   * What the outside services have been used for: daily counts (all services),
+   * plus the budgets and billing-month spend the paid ones are held to.
+   */
+  usageReport(now = Date.now()) {
+    const fa = this.enricher.flightaware.status();
+    const claude = this.atc.summarizer.status();
+    const { source } = this.getConfig();
+    const onlineInUse = source.type === 'adsb-api' || (source.type === 'aircraft-json' && source.supplement);
+    return {
+      ...this.usage.summary(now),
+      flightaware: {
+        configured: fa.configured,
+        active: fa.active,
+        budgetUsd: fa.budgetUsd,
+        spentThisMonthUsd: fa.spentThisMonthUsd,
+        spentTodayUsd: fa.spentTodayUsd,
+        leftTodayUsd: fa.leftTodayUsd,
+        reported: fa.reported,
+        calls: fa.calls,
+        lastRefusal: fa.lastRefusal,
+      },
+      anthropic: {
+        configured: claude.available,
+        model: claude.model,
+        budgetUsd: claude.budgetUsd,
+        spentThisMonthUsd: claude.spentThisMonthUsd,
+        spentTodayUsd: claude.spentTodayUsd,
+        leftTodayUsd: claude.leftTodayUsd,
+        lastRefusal: claude.lastRefusal,
+      },
+      adsbLol: {
+        // The live feed's interval (it also serves flight paths for the mini map).
+        liveFeedSeconds: onlineInUse ? Math.max(5, source.onlineSeconds) : null,
+      },
     };
   }
 

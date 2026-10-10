@@ -2,16 +2,9 @@
 // Data from /api/rf (server/rf.js), refreshed every 30 s while the tab is open;
 // charts are plain SVG, drawn to the width they're shown at.
 
-const $ = (id) => document.getElementById(id);
-const esc = (s) =>
-  String(s ?? '').replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
-  );
-const fmt = (v, d = 0) =>
-  v == null || !Number.isFinite(v) ? '–' : v.toLocaleString('en-US', { maximumFractionDigits: d });
-const minus = (s) => String(s).replace(/^-/, '−');
+import { cssVar, esc, fmt, hideTip, minus, niceStep, showTip, widthOf } from './viz.js';
 
+const $ = (id) => document.getElementById(id);
 const VERDICT = {
   good: { icon: '✓', title: 'Receiver is working well' },
   fair: { icon: '!', title: 'Receiver needs attention' },
@@ -20,47 +13,6 @@ const VERDICT = {
 };
 const MARK = { ok: '✓', warn: '!', bad: '✕', info: 'i' };
 const STATUS_WORD = { ok: 'Good', warn: 'Check', bad: 'Problem', info: 'Note' };
-
-// ---- tooltip -----------------------------------------------------------------------------
-
-const tip = $('tooltip');
-/** rows: [{ value, label, key? }] — values lead, labels follow; built with textContent. */
-function showTip(x, y, rows, title) {
-  tip.replaceChildren();
-  if (title) {
-    const t = document.createElement('div');
-    t.className = 'muted';
-    t.textContent = title;
-    tip.append(t);
-  }
-  for (const r of rows) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    if (r.key) {
-      const k = document.createElement('span');
-      k.className = 'tk';
-      k.style.background = r.key;
-      row.append(k);
-    }
-    const v = document.createElement('span');
-    v.className = 'tv';
-    v.textContent = r.value;
-    const l = document.createElement('span');
-    l.className = 'muted';
-    l.textContent = r.label ?? '';
-    row.append(v, l);
-    tip.append(row);
-  }
-  tip.hidden = false;
-  const w = tip.offsetWidth;
-  const h = tip.offsetHeight;
-  tip.style.left = `${Math.min(window.innerWidth - w - 8, x + 14)}px`;
-  tip.style.top = `${Math.max(8, y - h - 12)}px`;
-}
-const hideTip = () => {
-  tip.hidden = true;
-};
-const cssVar = (name) => getComputedStyle($('rf')).getPropertyValue(name).trim();
 
 // ---- verdict, checks, tiles ----------------------------------------------------------------
 
@@ -178,9 +130,6 @@ function renderCoverage(r) {
 }
 
 // ---- range by direction: polar plot -------------------------------------------------------
-
-/** Draw at the size it's shown, so text is its real size on a phone too. */
-const widthOf = (box) => Math.max(280, Math.round(box.clientWidth || 520));
 
 function niceMax(km) {
   return Math.max(100, Math.ceil(km / 50) * 50);
@@ -349,12 +298,6 @@ const HISTORY = [
   },
 ];
 
-function niceStep(span) {
-  const raw = span / 4;
-  const p = 10 ** Math.floor(Math.log10(raw || 1));
-  return [1, 2, 2.5, 5, 10].map((k) => k * p).find((s) => s >= raw) ?? raw;
-}
-
 function renderHistory(r) {
   const box = $('history');
   const h = r.history ?? [];
@@ -440,7 +383,7 @@ function lineChart(box, data, c) {
       c.series.map((s) => ({
         value: p[s.key] == null ? 'no reading' : `${minus(fmt(p[s.key], 1))}${c.unit}`,
         label: s.label,
-        key: cssVar(s.cls === 's1' ? '--series-1' : '--series-2'),
+        key: cssVar($('rf'), s.cls === 's1' ? '--series-1' : '--series-2'),
       })),
       new Date(p.t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }),
     );

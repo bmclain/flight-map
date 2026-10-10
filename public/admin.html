@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/css/fonts.css" />
     <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/viz.css" />
     <link rel="stylesheet" href="/css/rf.css" />
   </head>
   <body>
@@ -25,7 +26,7 @@
       </nav>
     </header>
 
-    <nav class="tabs" role="tablist" aria-label="Settings">
+    <nav class="page-tabs" role="tablist" aria-label="Settings">
       <button type="button" role="tab" data-tab="overview">Overview</button>
       <button type="button" role="tab" data-tab="display">Display</button>
       <button type="button" role="tab" data-tab="data">Aircraft data</button>
@@ -39,6 +40,18 @@
       <section data-tab="overview" class="card span-2" id="status-card">
         <h2>Status</h2>
         <div class="status-grid" id="status"></div>
+      </section>
+
+      <!-- API usage --------------------------------------------------------------------->
+      <section data-tab="overview" class="card span-2 viz-root" id="usage-card">
+        <h2>API usage</h2>
+        <p class="help">
+          The paid services are held to their monthly caps (FlightAware under Aircraft data, Claude under ATC audio).
+          Daily figures are kept for 120 days.
+        </p>
+        <div class="usage-grid" id="usage"></div>
+        <h3>Other services <small class="muted">(free)</small></h3>
+        <div class="usage-other" id="usage-other"></div>
       </section>
 
       <!-- Receiver --------------------------------------------------------------->

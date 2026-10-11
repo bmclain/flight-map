@@ -31,6 +31,34 @@ test('a stale antenna position gives way to a fresher online one', () => {
   assert.equal(only.lat, 53);
 });
 
+test('what the antenna hasn’t heard yet comes from the online record', () => {
+  const now = 100_000;
+  // Far out: the antenna has a position but not yet the flight number or category.
+  const local = {
+    at: now,
+    data: { aircraft: [ac('aaaaaa', { callsign: null, category: null, squawk: '1234', rssi: -26 })] },
+  };
+  const online = {
+    at: now,
+    data: { aircraft: [ac('aaaaaa', { callsign: 'WJA428', category: 'A3', squawk: '4321', lat: 53, seenPos: 2 })] },
+  };
+  const [plane] = mergeAircraft(local, online, now);
+  assert.equal(plane.via, 'antenna');
+  assert.equal(plane.callsign, 'WJA428', 'flight number from the online feed');
+  assert.equal(plane.category, 'A3');
+  assert.equal(plane.squawk, '1234', 'what the antenna heard wins');
+  assert.equal(plane.lat, 52, 'position stays the antenna’s');
+  assert.equal(plane.rssi, -26);
+
+  // The other way round: the online position wins, and keeps the antenna's squawk.
+  const stale = { at: now, data: { aircraft: [ac('aaaaaa', { seenPos: 40, squawk: '7700' })] } };
+  const fresh = { at: now, data: { aircraft: [ac('aaaaaa', { seenPos: 1, callsign: 'WJA428', squawk: null })] } };
+  const [other] = mergeAircraft(stale, fresh, now);
+  assert.equal(other.via, 'online');
+  assert.equal(other.squawk, '7700');
+  assert.equal(other.callsign, 'WJA428');
+});
+
 test('the merged source polls both and keeps going on the online feed when the antenna drops out', async () => {
   let antennaUp = true;
   const fetchImpl = fakeFetch([

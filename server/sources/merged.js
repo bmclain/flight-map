@@ -7,6 +7,20 @@ import { HttpSource } from './http.js';
 /** Online positions are only used when they're fresher than the antenna's by this much (s). */
 const PREFER_ANTENNA_S = 5;
 
+// Where the plane is and how well it's heard stay with the record they came from.
+const OWN = new Set(['hex', 'lat', 'lon', 'seen', 'seenPos', 'onGround', 'mlat', 'tisb', 'rssi', 'via']);
+
+/**
+ * `rec` with its gaps filled from `other`: at the edge of its range the antenna
+ * often has a plane's position well before the message with its flight number
+ * and category, which the online feed already knows.
+ */
+function fillGaps(rec, other) {
+  const out = { ...rec };
+  for (const [k, v] of Object.entries(other)) if (out[k] == null && v != null && !OWN.has(k)) out[k] = v;
+  return out;
+}
+
 /**
  * Merge the antenna's aircraft with the online feed's, as of `now` (ms).
  * Online records are aged by the time since they were fetched.
@@ -31,10 +45,13 @@ export function mergeAircraft(local, online, now = Date.now()) {
         continue;
       }
       // Heard by the antenna but without a (recent) position: use the online one,
-      // keeping what the antenna knows.
+      // keeping what the antenna knows. Otherwise the antenna's, with anything it
+      // hasn't heard yet from the online one.
       const minePos = mine.lat != null ? mine.seenPos : Infinity;
       if (ac.seenPos != null && ac.seenPos + PREFER_ANTENNA_S < minePos) {
-        out.set(ac.hex, { ...ac, rssi: mine.rssi, heardByAntenna: true });
+        out.set(ac.hex, { ...fillGaps(ac, mine), rssi: mine.rssi, heardByAntenna: true });
+      } else {
+        out.set(ac.hex, fillGaps(mine, ac));
       }
     }
   }
